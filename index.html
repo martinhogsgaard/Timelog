@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Timelog">
+<meta name="theme-color" content="#F5F4F0">
+<meta name="format-detection" content="telephone=no">
+<title>Timelog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#F5F4F0;--white:#FFFFFF;--border:#E2E0DA;--border-dark:#C4C1B8;
+  --text:#1A1917;--muted:#8C8980;--subtle:#C0BDB5;
+  --accent:#2D5BE3;--accent-bg:#EBF0FD;
+  --green:#1A7A4A;--green-bg:#E8F5EE;
+  --font:'IBM Plex Sans',sans-serif;--mono:'IBM Plex Mono',monospace;--r:14px;
+}
+html,body{height:100%;overscroll-behavior:none;background:var(--bg)}
+body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg)}
+.vwrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.view{padding:0 20px 40px;animation:fi .2s ease}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* NAV */
+.navbar{display:flex;border-top:1px solid var(--border);background:rgba(245,244,240,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:10px 0 max(16px,env(safe-area-inset-bottom));flex-shrink:0}
+.nbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px 8px;opacity:.32;transition:opacity .15s}
+.nbtn.on{opacity:1}
+.nbtn svg{width:22px;height:22px;stroke:var(--text);fill:none;stroke-width:1.6}
+.nbtn.on svg{stroke:var(--accent)}
+.nlbl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.nbtn.on .nlbl{color:var(--accent)}
+
+/* COMMON */
+.date-block{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.date-day{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.date-full{font-size:22px;font-weight:300;letter-spacing:-.02em}
+.date-full strong{font-weight:600}
+.vhdr{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.vtitle{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.slbl{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+
+/* STATS */
+.sbar{display:grid;grid-template-columns:1fr 1px 1fr;padding:18px 0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.sdiv{background:var(--border)}
+.stat{padding:0 16px}
+.stat:first-child{padding-left:0}
+.stat:last-child{padding-right:0}
+.stat-l{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.stat-v{font-size:28px;font-weight:300;letter-spacing:-.03em;line-height:1}
+.stat-v strong{font-weight:600}
+.stat-u{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
+
+/* CARD */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:4px}
+.crow{display:flex;border-bottom:1px solid var(--border)}
+.crow:last-child{border-bottom:none}
+.crow.two>*{flex:1;border-right:1px solid var(--border)}
+.crow.two>*:last-child{border-right:none}
+.cf{padding:13px 16px;flex:1}
+.fl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.fv{font-size:15px;font-weight:500;color:var(--text)}
+.fv.ph{color:var(--subtle);font-weight:400}
+.fs{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+input,textarea,select{width:100%;background:none;border:none;outline:none;font-family:var(--font);font-size:15px;font-weight:500;color:var(--text);padding:0}
+input::placeholder,textarea::placeholder{color:var(--subtle);font-weight:400}
+textarea{resize:none}
+
+/* HOUR PILLS */
+.hsec{padding:13px 16px;border-bottom:1px solid var(--border)}
+.hpills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.hp{padding:7px 11px;border-radius:7px;border:1px solid var(--border);font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--bg);cursor:pointer;transition:all .1s;user-select:none}
+.hp.on{background:var(--accent);border-color:var(--accent);color:white}
+
+/* BUTTONS */
+.btnp{width:100%;background:var(--text);color:var(--bg);border:none;border-radius:10px;padding:15px 20px;font-family:var(--font);font-size:15px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;transition:opacity .15s}
+.btnp:disabled{opacity:.3;cursor:not-allowed}
+.btnp svg{width:16px;height:16px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.75}
+.btns{width:100%;background:none;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:13px 20px;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px}
+.btns svg{width:15px;height:15px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.75}
+
+/* ENTRIES */
+.elist{display:flex;flex-direction:column;gap:8px}
+.entry{background:var(--white);border:1px solid var(--border);border-radius:12px;display:flex;overflow:hidden}
+.ebar{width:3px;flex-shrink:0;background:var(--border-dark)}
+.ebar.sent{background:var(--green)}
+.ebar.draft{background:var(--accent)}
+.ebody{flex:1;padding:12px 14px;display:flex;align-items:center;gap:12px}
+.ehrs{font-family:var(--mono);font-size:19px;font-weight:400;min-width:46px;line-height:1.1}
+.ehrs small{display:block;font-size:9px;color:var(--muted);letter-spacing:.1em;margin-top:2px}
+.einfo{flex:1;min-width:0}
+.ecli{font-size:13px;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.emeta{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eright{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:4px}
+.badge.draft{background:var(--accent-bg);color:var(--accent)}
+.badge.sent{background:var(--green-bg);color:var(--green)}
+.eamt{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+/* SHEET */
+.overlay{position:fixed;inset:0;background:rgba(26,25,23,.45);backdrop-filter:blur(4px);z-index:50;display:flex;align-items:flex-end}
+.sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-height:80dvh;overflow-y:auto;padding:0 20px max(24px,env(safe-area-inset-bottom));animation:su .28s cubic-bezier(.22,1,.36,1)}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.shandle{width:36px;height:4px;background:var(--border-dark);border-radius:2px;margin:12px auto 20px}
+.stitle{font-size:17px;font-weight:600;margin-bottom:16px}
+.sitem{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.sitem:last-child{border-bottom:none}
+.siname{font-size:15px;font-weight:500}
+.sisub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.sicheck{color:var(--accent);font-size:18px;font-weight:600}
+
+/* TOAST */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:10px;font-size:14px;font-weight:500;z-index:200;white-space:nowrap;pointer-events:none;animation:ti .25s ease}
+@keyframes ti{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* EMPTY */
+.empty{text-align:center;padding:52px 24px;color:var(--muted)}
+.eico{font-size:32px;margin-bottom:12px;opacity:.35}
+.etxt{font-size:13px;font-family:var(--mono);line-height:1.8}
+
+/* INVOICE */
+.icard{background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.ihdr{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:pointer}
+.icli{font-size:15px;font-weight:600}
+.inum{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.iright{display:flex;align-items:center;gap:10px}
+.itot{font-size:15px;font-weight:600;text-align:right}
+.isub{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.ichev{transition:transform .2s;color:var(--muted);display:flex}
+.ichev.open{transform:rotate(90deg)}
+.iline{padding:10px 16px;display:flex;align-items:center;border-bottom:1px solid var(--border);font-size:13px;gap:8px}
+.iline:last-child{border-bottom:none}
+.iln{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:20px}
+.ild{flex:1;color:var(--text);font-size:12px}
+.ilh{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.ila{font-family:var(--mono);font-size:12px;font-weight:500;white-space:nowrap}
+.iftr{padding:12px 16px;background:var(--bg);display:flex;justify-content:space-between;align-items:center}
+.itlbl{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.itval{font-size:17px;font-weight:600}
+
+/* SETTINGS */
+.srow{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--white)}
+.srow:last-child{border-bottom:none}
+.srlbl{font-size:14px;font-weight:500}
+.srsub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.srval{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.srinp{background:none;border:none;outline:none;font-family:var(--mono);font-size:13px;text-align:right;color:var(--text)}
+.sgrp{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:24px}
+
+/* SPINNER */
+.spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+.spin-dark{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;margin:0 auto 14px}
+@keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="vwrap" id="vwrap"></div>
+  <nav class="navbar" id="navbar"></nav>
+</div>
+<div id="toaster"></div>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────
+window.EC = {
+  useProxy: true,
+  // APP_KEY beskytter proxy-endpointet mod uautoriseret brug.
+  // Generér en hemmelig streng på: https://generate-secret.vercel.app/32
+  // Sæt SAMME streng i Vercel → Settings → Environment Variables som APP_KEY
+  appKey: null  // sættes automatisk via /api/config
+};
+
+// ─── STORAGE ─────────────────────────────────────────────────────
+var S = {
+  g: function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  s: function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  customers: function(){return this.g("tl_c",[])},
+  setCustomers: function(v){this.s("tl_c",v)},
+  entries: function(){return this.g("tl_e",[])},
+  setEntries: function(v){this.s("tl_e",v)},
+  settings: function(){return this.g("tl_s",{defaultRate:1000,userName:"",userInitials:""})},
+  setSettings: function(v){this.s("tl_s",v)},
+  addEntry: function(e){
+    var entry=Object.assign({id:Date.now().toString(),createdAt:new Date().toISOString(),status:"sent"},e);
+    this.setEntries([entry].concat(this.entries()));
+    return entry;
+  },
+  mergeCustomers: function(ec){
+    var prev=this.customers(),map={};
+    prev.forEach(function(c){map[c.number]=c;});
+    var merged=ec.map(function(c){return Object.assign({},c,{rate:map[c.number]?map[c.number].rate:null});});
+    this.setCustomers(merged);
+    return merged;
+  },
+  setCustomerRate: function(num,rate){
+    this.setCustomers(this.customers().map(function(c){return c.number===num?Object.assign({},c,{rate:rate}):c;}));
+  }
+};
+
+// ─── API ─────────────────────────────────────────────────────────
+var API = {
+  async getAppKey() {
+    if (window.EC.appKey) return window.EC.appKey;
+    var res = await fetch("/api/config");
+    var data = await res.json();
+    window.EC.appKey = data.appKey;
+    return window.EC.appKey;
+  },
+
+  async req(path, method, body) {
+    method = method || "GET";
+    var opts, url;
+    if (window.EC.useProxy) {
+      var key = await this.getAppKey();
+      url = "/api/proxy";
+      opts = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-app-key": key || ""
+        },
+        body: JSON.stringify({path:path, method:method, body:body||undefined})
+      };
+    } else {
+      url = "https://restapi.e-conomic.com" + path;
+      opts = {
+        method: method,
+        headers: {
+          "Content-Type":"application/json",
+          "X-AppSecretToken": window.EC.appSecret||"",
+          "X-AgreementGrantToken": window.EC.agreementToken||""
+        }
+      };
+      if (body) opts.body = JSON.stringify(body);
+    }
+    var res = await fetch(url, opts);
+    if (res.status === 204) return null;
+    var data = await res.json().catch(function(){return {};});
+    if (!res.ok) throw new Error(data.message || "HTTP " + res.status);
+    return data;
+  },
+
+  async getCustomers() {
+    var d = await this.req("/customers?pagesize=100&sort=name");
+    return (d.collection||[]).map(function(c){return {id:c.customerNumber,name:c.name,number:c.customerNumber,rate:null};});
+  },
+
+  async findDraft(customerNumber) {
+    var d = await this.req("/invoices/drafts?filter=customer.customerNumber$eq:"+customerNumber+"&pagesize=10");
+    return (d.collection||[])[0] || null;
+  },
+
+  async createDraft(customerNumber) {
+    return this.req("/invoices/drafts","POST",{
+      date: new Date().toISOString().split("T")[0],
+      currency:"DKK",
+      paymentTerms:{paymentTermsNumber:1},
+      customer:{customerNumber:customerNumber},
+      recipient:{name:""},
+      layout:{layoutNumber:1}
+    });
+  },
+
+  async addLine(draftNumber, desc, qty, price) {
+    var draft = await this.req("/invoices/drafts/"+draftNumber);
+    var lineNumber = ((draft.lines||[]).length) + 1;
+    return this.req("/invoices/drafts/"+draftNumber+"/lines","POST",{
+      lineNumber:lineNumber, description:desc, quantity:qty, unitNetPrice:price,
+      discountPercentage:0, unit:{unitNumber:1}
+    });
+  },
+
+  async getDraftLines(draftNumber) {
+    var d = await this.req("/invoices/drafts/"+draftNumber+"/lines");
+    return d.collection||[];
+  },
+
+  async getAllDrafts() {
+    var d = await this.req("/invoices/drafts?pagesize=50&sort=draftInvoiceNumber$desc");
+    return d.collection||[];
+  },
+
+  async logHours(customerNumber, date, description, hours, rate) {
+    var draft = await this.findDraft(customerNumber);
+    if (!draft) draft = await this.createDraft(customerNumber);
+    var dn = draft.draftInvoiceNumber;
+    var fd = new Date(date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
+    await this.addLine(dn, fd+" – "+description, hours, rate);
+    return dn;
+  }
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────────
+var DAYS   = ["Søndag","Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag"];
+var MONTHS = ["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"];
+var MONTHS_S = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+var QUICK  = ["0,5","1","1,5","2","2,5","3","4","4,5","5","6","7","7,5","8"];
+
+function fmt(n) {
+  if (n===null||n===undefined) return "–";
+  return (n%1===0) ? String(n) : String(n).replace(".",",");
+}
+
+function parseH(s) {
+  if (!s) return null;
+  var n = parseFloat(String(s).replace(",","."));
+  return (isNaN(n)||n<=0) ? null : n;
+}
+
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function dateLabel(ds) {
+  var d = new Date(ds+"T00:00:00");
+  var t = todayStr();
+  var y = new Date(Date.now()-86400000).toISOString().split("T")[0];
+  if (ds===t) return "I dag";
+  if (ds===y) return "I går";
+  return d.getDate()+". "+MONTHS_S[d.getMonth()]+" "+d.getFullYear();
+}
+
+function weeklySums() {
+  var entries = S.entries();
+  var now = new Date();
+  var day = now.getDay()||7;
+  var mon = new Date(now); mon.setDate(now.getDate()-day+1); mon.setHours(0,0,0,0);
+  var t = todayStr(), today=0, week=0;
+  entries.forEach(function(e){
+    var d=new Date(e.date+"T00:00:00");
+    if (e.date===t) today+=e.hours;
+    if (d>=mon) week+=e.hours;
+  });
+  return {today:today, week:week};
+}
+
+var _toastTimer;
+function toast(msg, dur) {
+  dur = dur||3200;
+  clearTimeout(_toastTimer);
+  document.getElementById("toaster").innerHTML = '<div class="toast">'+msg+'</div>';
+  _toastTimer = setTimeout(function(){document.getElementById("toaster").innerHTML="";}, dur);
+}
+
+// SVG icons
+var ICONS = {
+  clock:   '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  history: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0"/><path d="M12 7v5l3 3"/></svg>',
+  file:    '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>',
+  user:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
+  send:    '<svg viewBox="0 0 24 24"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9A9 9 0 0120.5 15M20.5 15A9 9 0 013.5 9"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>'
+};
+
+function el(tag, attrs, children) {
+  var node = document.createElement(tag);
+  if (attrs) Object.keys(attrs).forEach(function(k){
+    if (k==="class") node.className=attrs[k];
+    else if (k==="style") node.style.cssText=attrs[k];
+    else node.setAttribute(k,attrs[k]);
+  });
+  if (children) {
+    if (typeof children==="string") node.innerHTML=children;
+    else if (Array.isArray(children)) children.forEach(function(c){if(c)node.appendChild(c);});
+    else node.appendChild(children);
+  }
+  return node;
+}
+
+function div(cls, html) { var d=document.createElement("div"); d.className=cls; if(html)d.innerHTML=html; return d; }
+function span(cls, html) { var s=document.createElement("span"); s.className=cls; s.innerHTML=html; return s; }
+
+// ─── SHEET ───────────────────────────────────────────────────────
+function showSheet(title, items) {
+  var overlay = div("overlay");
+  var sheet = div("sheet");
+  var handle = div("shandle");
+  var titleEl = div("stitle", title);
+  sheet.appendChild(handle);
+  sheet.appendChild(titleEl);
+
+  items.forEach(function(item, i) {
+    var row = div("sitem");
+    var left = div("");
+    left.appendChild(div("siname", item.name));
+    if (item.sub) left.appendChild(div("sisub", item.sub));
+    row.appendChild(left);
+    if (item.checked) row.appendChild(span("sicheck", "✓"));
+    row.addEventListener("click", function(){
+      item.onSelect();
+      document.body.removeChild(overlay);
+    });
+    sheet.appendChild(row);
+  });
+
+  overlay.appendChild(sheet);
+  overlay.addEventListener("click", function(e){
+    if (e.target===overlay) document.body.removeChild(overlay);
+  });
+  document.body.appendChild(overlay);
+}
+
+// ─── VIEWS ───────────────────────────────────────────────────────
+
+// State for log view
+var LS = {
+  date: todayStr(),
+  hours: "",
+  desc: "",
+  rate: fmt(S.settings().defaultRate||1000),
+  customer: null,
+  loading: false
+};
+
+function buildLogView(container) {
+  var now = new Date();
+  var sums = weeklySums();
+  var entries = S.entries().slice(0,6);
+  var settings = S.settings();
+  var customers = S.customers();
+  container.innerHTML = "";
+
+  // Date block
+  var db = div("date-block");
+  db.appendChild(div("date-day", "I dag"));
+  var df = div("date-full");
+  df.innerHTML = "<strong>"+DAYS[now.getDay()]+"</strong>, "+now.getDate()+". "+MONTHS[now.getMonth()]+" "+now.getFullYear();
+  db.appendChild(df);
+  container.appendChild(db);
+
+  // Stats
+  var sb = div("sbar");
+  var s1 = div("stat");
+  s1.appendChild(div("stat-l","I dag"));
+  var sv1=div("stat-v"); sv1.innerHTML="<strong>"+fmt(sums.today)+"</strong>"; s1.appendChild(sv1);
+  s1.appendChild(div("stat-u","timer"));
+  var s2 = div("stat");
+  s2.appendChild(div("stat-l","Denne uge"));
+  s2.appendChild(div("stat-v",fmt(sums.week)));
+  s2.appendChild(div("stat-u","timer"));
+  var sdiv2 = div("sdiv");
+  sb.appendChild(s1); sb.appendChild(sdiv2); sb.appendChild(s2);
+  container.appendChild(sb);
+
+  // Section label
+  container.appendChild(div("slbl","<span>Registrer timer</span>"));
+
+  // Card
+  var card = div("card");
+
+  // Customer row
+  var crow1 = div("crow");
+  var cf1 = div("cf");
+  cf1.style.display="flex"; cf1.style.alignItems="center"; cf1.style.justifyContent="space-between"; cf1.style.cursor="pointer";
+  var cf1left = div("");
+  cf1left.appendChild(div("fl","Kunde"));
+  if (LS.customer) {
+    cf1left.appendChild(div("fv",LS.customer.name));
+    var rateTxt = LS.customer.rate ? " · "+fmt(LS.customer.rate)+" kr/t" : "";
+    cf1left.appendChild(div("fs","Nr. "+LS.customer.number+rateTxt));
+  } else {
+    var ph = div("fv ph");
+    ph.textContent = customers.length===0 ? "Synkroniser kunder i Konto →" : "Vælg kunde →";
+    cf1left.appendChild(ph);
+  }
+  var chev = div(""); chev.innerHTML=ICONS.chevron; chev.style.color="var(--muted)"; chev.style.display="flex";
+  cf1.appendChild(cf1left); cf1.appendChild(chev);
+  crow1.appendChild(cf1);
+  crow1.addEventListener("click", function(){
+    if (customers.length===0) { toast("Gå til Konto og synkroniser kunder først"); return; }
+    showSheet("Vælg kunde", customers.map(function(c){
+      var sub = "Nr. "+c.number+(c.rate ? " · "+fmt(c.rate)+" kr/t" : "");
+      return {
+        name: c.name, sub: sub,
+        checked: LS.customer && LS.customer.number===c.number,
+        onSelect: function(){
+          LS.customer = c;
+          var s = S.settings();
+          LS.rate = fmt(c.rate||s.defaultRate||1000);
+          buildLogView(container);
+        }
+      };
+    }));
+  });
+  card.appendChild(crow1);
+
+  // Date + rate row
+  var crow2 = div("crow two");
+  var cf2a = div("cf"); cf2a.appendChild(div("fl","Dato"));
+  var dateInp = document.createElement("input"); dateInp.type="date"; dateInp.value=LS.date; dateInp.className="fv";
+  dateInp.addEventListener("input",function(){LS.date=dateInp.value;});
+  cf2a.appendChild(dateInp);
+  var cf2b = div("cf"); cf2b.appendChild(div("fl","Timepris (kr)"));
+  var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal"; rateInp.value=LS.rate; rateInp.placeholder=String(settings.defaultRate||1000); rateInp.className="fv";
+  rateInp.addEventListener("input",function(){LS.rate=rateInp.value; updateSubmitBtn();});
+  cf2b.appendChild(rateInp);
+  crow2.appendChild(cf2a); crow2.appendChild(cf2b);
+  card.appendChild(crow2);
+
+  // Hours
+  var hsec = div("hsec");
+  hsec.appendChild(div("fl","Antal timer"));
+  var hoursInp = document.createElement("input"); hoursInp.type="text"; hoursInp.inputMode="decimal"; hoursInp.value=LS.hours;
+  hoursInp.placeholder="Skriv antal timer, f.eks. 3,5 eller 10,5"; hoursInp.className="fv";
+  hoursInp.style.marginTop="6px"; hoursInp.style.marginBottom="12px";
+  hoursInp.addEventListener("input",function(){LS.hours=hoursInp.value; syncPills(); updateSubmitBtn();});
+  hsec.appendChild(hoursInp);
+  var hpills = div("hpills");
+  QUICK.forEach(function(h){
+    var p = div("hp"+(LS.hours===h?" on":""),h);
+    p.addEventListener("click",function(){
+      LS.hours=h; hoursInp.value=h; syncPills(); updateSubmitBtn();
+    });
+    hpills.appendChild(p);
+  });
+  function syncPills(){
+    hpills.querySelectorAll(".hp").forEach(function(p){
+      p.className="hp"+(p.textContent===LS.hours?" on":"");
+    });
+  }
+  hsec.appendChild(hpills);
+  card.appendChild(hsec);
+
+  // Description
+  var crow3 = div("crow");
+  var cf3 = div("cf"); cf3.style.flex="1";
+  cf3.appendChild(div("fl","Beskrivelse"));
+  var descTa = document.createElement("textarea"); descTa.rows=2; descTa.placeholder="Hvad arbejdede du på?"; descTa.className="fv"; descTa.style.marginTop="4px";
+  descTa.value=LS.desc;
+  descTa.addEventListener("input",function(){LS.desc=descTa.value; updateSubmitBtn();});
+  cf3.appendChild(descTa);
+  crow3.appendChild(cf3);
+  card.appendChild(crow3);
+  container.appendChild(card);
+
+  // Submit button
+  var submitBtn = document.createElement("button");
+  submitBtn.className="btnp";
+  function updateSubmitBtn() {
+    var can = LS.customer && parseH(LS.hours) && parseH(LS.rate) && LS.desc.trim();
+    submitBtn.disabled = !can || LS.loading;
+    submitBtn.innerHTML = LS.loading
+      ? '<span class="spin"></span> Sender…'
+      : ICONS.send+' Send til e-conomic';
+  }
+  updateSubmitBtn();
+  submitBtn.addEventListener("click", async function(){
+    var hours=parseH(LS.hours), rate=parseH(LS.rate);
+    if (!LS.customer) return toast("Vælg en kunde");
+    if (!hours) return toast("Angiv antal timer");
+    if (!rate) return toast("Angiv timepris");
+    if (!LS.desc.trim()) return toast("Tilføj en beskrivelse");
+    LS.loading=true; updateSubmitBtn();
+    try {
+      var dn = await API.logHours(LS.customer.number, LS.date, LS.desc.trim(), hours, rate);
+      S.addEntry({customerNumber:LS.customer.number, customerName:LS.customer.name, date:LS.date, description:LS.desc.trim(), hours:hours, hourlyRate:rate, draftNumber:dn, status:"sent"});
+      toast("✓ "+fmt(hours)+" timer lagt på kladde #"+dn);
+      LS.hours=""; LS.desc=""; LS.date=todayStr();
+    } catch(e) {
+      toast("Fejl: "+e.message);
+    } finally {
+      LS.loading=false;
+      buildLogView(container);
+    }
+  });
+  container.appendChild(submitBtn);
+
+  // Recent entries
+  if (entries.length>0) {
+    var recWrap = div(""); recWrap.style.marginTop="28px";
+    recWrap.appendChild(div("slbl","<span>Seneste registreringer</span>"));
+    var elist = div("elist");
+    entries.forEach(function(e){
+      var entry=div("entry");
+      var ebar=div("ebar "+e.status);
+      var ebody=div("ebody");
+      var ehrs=div("ehrs",fmt(e.hours)+'<small>timer</small>');
+      var einfo=div("einfo");
+      einfo.appendChild(div("ecli",e.customerName));
+      var d=new Date(e.date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit"});
+      var descShort=(e.description||"").slice(0,30)+((e.description||"").length>30?"…":"");
+      einfo.appendChild(div("emeta",d+" · "+descShort));
+      var eright=div("eright");
+      eright.appendChild(span("badge "+e.status, e.status==="sent"?"Sendt ✓":"Kladde"));
+      if (e.draftNumber) eright.appendChild(span("eamt","#"+e.draftNumber));
+      ebody.appendChild(ehrs); ebody.appendChild(einfo); ebody.appendChild(eright);
+      entry.appendChild(ebar); entry.appendChild(ebody);
+      elist.appendChild(entry);
+    });
+    recWrap.appendChild(elist);
+    container.appendChild(recWrap);
+  }
+}
+
+function buildHistoryView(container) {
+  container.innerHTML = "";
+  var entries = S.entries();
+
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Historik")); container.appendChild(vhdr);
+
+  if (entries.length===0) {
+    var empty=div("empty"); empty.appendChild(div("eico","🕐")); empty.appendChild(div("etxt","Ingen registreringer endnu.\nStart med at logge dine timer.")); container.appendChild(empty); return;
+  }
+
+  var totalH=entries.reduce(function(s,e){return s+e.hours;},0);
+  var totalAmt=entries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+
+  var sb=div("sbar"); sb.style.marginBottom="24px";
+  var s1=div("stat"); s1.appendChild(div("stat-l","Total")); s1.innerHTML+='<div class="stat-v"><strong>'+fmt(totalH)+'</strong></div><div class="stat-u">timer</div>';
+  var s2=div("stat"); s2.appendChild(div("stat-l","Faktureret")); s2.innerHTML+='<div class="stat-v" style="font-size:20px"><strong>'+totalAmt.toLocaleString("da-DK")+'</strong></div><div class="stat-u">kr ex. moms</div>';
+  var sdiv2=div("sdiv");
+  sb.appendChild(s1); sb.appendChild(sdiv2); sb.appendChild(s2);
+  container.appendChild(sb);
+
+  // Group by date
+  var groups={};
+  entries.forEach(function(e){if(!groups[e.date])groups[e.date]=[];groups[e.date].push(e);});
+  var sorted=Object.keys(groups).sort(function(a,b){return b.localeCompare(a);});
+
+  sorted.forEach(function(date){
+    var dayEntries=groups[date];
+    var dayH=dayEntries.reduce(function(s,e){return s+e.hours;},0);
+    var wrap=div(""); wrap.style.marginBottom="20px";
+    wrap.appendChild(div("slbl","<span>"+dateLabel(date)+"</span><span>"+fmt(dayH)+" t</span>"));
+    var elist=div("elist");
+    dayEntries.forEach(function(e){
+      var entry=div("entry");
+      var ebar=div("ebar "+e.status);
+      var ebody=div("ebody");
+      var ehrs=div("ehrs",fmt(e.hours)+'<small>timer</small>');
+      var einfo=div("einfo");
+      einfo.appendChild(div("ecli",e.customerName));
+      var descShort=(e.description||"").slice(0,38)+((e.description||"").length>38?"…":"");
+      einfo.appendChild(div("emeta",descShort));
+      var eright=div("eright");
+      eright.appendChild(span("badge "+e.status,e.status==="sent"?"Sendt":"Kladde"));
+      eright.appendChild(span("eamt",(e.hours*e.hourlyRate).toLocaleString("da-DK")+" kr"));
+      ebody.appendChild(ehrs); ebody.appendChild(einfo); ebody.appendChild(eright);
+      entry.appendChild(ebar); entry.appendChild(ebody);
+      elist.appendChild(entry);
+    });
+    wrap.appendChild(elist);
+    container.appendChild(wrap);
+  });
+}
+
+// Drafts state
+var DR = { drafts:null, lines:{}, expanded:null, loading:true, error:null };
+
+function buildInvoicesView(container) {
+  container.innerHTML="";
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Fakturakladder")); container.appendChild(vhdr);
+
+  if (DR.loading) {
+    container.appendChild(div("empty",'<div class="spin-dark"></div><div class="etxt">Henter kladder fra e-conomic…</div>'));
+    return;
+  }
+  if (DR.error) {
+    container.appendChild(div("empty",'<div class="etxt">'+DR.error+'</div>'));
+    var btn=document.createElement("button"); btn.className="btns"; btn.innerHTML=ICONS.refresh+" Prøv igen";
+    btn.addEventListener("click",loadDrafts); container.appendChild(btn); return;
+  }
+  if (!DR.drafts || DR.drafts.length===0) {
+    container.appendChild(div("empty",'<div class="eico">📄</div><div class="etxt">Ingen åbne kladder endnu.</div>'));
+    var btn2=document.createElement("button"); btn2.className="btns"; btn2.innerHTML=ICONS.refresh+" Hent fra e-conomic";
+    btn2.addEventListener("click",loadDrafts); container.appendChild(btn2); return;
+  }
+
+  container.appendChild(div("slbl","<span>"+DR.drafts.length+" åbne kladder</span>"));
+
+  DR.drafts.forEach(function(d){
+    var dn=d.draftInvoiceNumber;
+    var isOpen=DR.expanded===dn;
+    var name=(d.recipient&&d.recipient.name)||((d.customer&&d.customer.name))||"Ukendt kunde";
+    var icard=div("icard");
+
+    // Header
+    var ihdr=div("ihdr");
+    var ileft=div("");
+    ileft.appendChild(div("icli",name));
+    ileft.appendChild(div("inum","Kladde #"+dn+" · "+d.date));
+    var iright=div("iright");
+    var itotWrap=div(""); itotWrap.style.textAlign="right";
+    itotWrap.appendChild(div("itot",(d.netAmount||0).toLocaleString("da-DK")+" kr"));
+    itotWrap.appendChild(div("isub","ex. moms"));
+    var ichev=div("ichev"+(isOpen?" open":"")); ichev.innerHTML=ICONS.chevron;
+    iright.appendChild(itotWrap); iright.appendChild(ichev);
+    ihdr.appendChild(ileft); ihdr.appendChild(iright);
+    ihdr.addEventListener("click",function(){
+      DR.expanded = isOpen ? null : dn;
+      if (!DR.lines[dn]) {
+        DR.lines[dn]=null;
+        var vw=document.getElementById("vwrap");
+        buildInvoicesView(vw);
+        API.getDraftLines(dn).then(function(ls){DR.lines[dn]=ls; buildInvoicesView(vw);}).catch(function(){DR.lines[dn]=[]; buildInvoicesView(vw);});
+      } else {
+        buildInvoicesView(document.getElementById("vwrap"));
+      }
+    });
+    icard.appendChild(ihdr);
+
+    // Lines
+    if (isOpen) {
+      var lines=DR.lines[dn];
+      if (lines===null||lines===undefined) {
+        icard.appendChild(div("","<div style='padding:14px 16px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Indlæser linjer…</div>"));
+      } else if (lines.length===0) {
+        icard.appendChild(div("","<div style='padding:14px 16px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Ingen linjer</div>"));
+      } else {
+        lines.forEach(function(l){
+          var iline=div("iline");
+          iline.appendChild(span("iln","#"+l.lineNumber));
+          iline.appendChild(span("ild",l.description||""));
+          iline.appendChild(span("ilh",fmt(l.quantity||0)+"t"));
+          iline.appendChild(span("ila",((l.quantity||0)*(l.unitNetPrice||0)).toLocaleString("da-DK")+" kr"));
+          icard.appendChild(iline);
+        });
+        var iftr=div("iftr");
+        iftr.appendChild(div("itlbl","Total ex. moms"));
+        iftr.appendChild(div("itval",(d.netAmount||0).toLocaleString("da-DK")+" kr"));
+        icard.appendChild(iftr);
+      }
+    }
+    container.appendChild(icard);
+  });
+
+  var refreshBtn=document.createElement("button"); refreshBtn.className="btns"; refreshBtn.innerHTML=ICONS.refresh+" Opdater fra e-conomic";
+  refreshBtn.addEventListener("click",loadDrafts);
+  container.appendChild(refreshBtn);
+}
+
+async function loadDrafts() {
+  DR.loading=true; DR.error=null;
+  var vw=document.getElementById("vwrap");
+  buildInvoicesView(vw);
+  try {
+    DR.drafts=await API.getAllDrafts();
+  } catch(e) {
+    DR.error=e.message;
+  } finally {
+    DR.loading=false;
+    buildInvoicesView(vw);
+  }
+}
+
+function buildSettingsView(container) {
+  container.innerHTML="";
+  var s=S.settings(), customers=S.customers(), cfg=window.EC||{};
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Konto")); container.appendChild(vhdr);
+
+  // Helper: sgrp wrapper
+  function sgrp(rows) {
+    var g=div("sgrp");
+    rows.forEach(function(r){g.appendChild(r);});
+    return g;
+  }
+  function srow(labelHTML, right) {
+    var r=div("srow"); r.innerHTML=labelHTML; r.appendChild(right); return r;
+  }
+
+  // Profile
+  container.appendChild(div("slbl","<span>Profil</span>"));
+  var nameInp=document.createElement("input"); nameInp.className="srinp"; nameInp.type="text"; nameInp.value=s.userName||""; nameInp.placeholder="Dit navn"; nameInp.style.width="180px";
+  nameInp.addEventListener("input",function(){s.userName=nameInp.value; S.setSettings(s);});
+  var initInp=document.createElement("input"); initInp.className="srinp"; initInp.type="text"; initInp.maxLength=3; initInp.value=s.userInitials||""; initInp.placeholder="MH"; initInp.style.width="60px";
+  initInp.addEventListener("input",function(){s.userInitials=initInp.value.toUpperCase(); S.setSettings(s);});
+  var r1=div("srow"); r1.appendChild(div("","<div class='srlbl'>Navn</div>")); r1.appendChild(nameInp);
+  var r2=div("srow"); r2.appendChild(div("","<div class='srlbl'>Initialer</div>")); r2.appendChild(initInp);
+  container.appendChild(sgrp([r1,r2]));
+
+  // Default rate
+  container.appendChild(div("slbl","<span>Standard timepris</span>"));
+  var rateInp=document.createElement("input"); rateInp.className="srinp"; rateInp.type="text"; rateInp.inputMode="decimal"; rateInp.value=s.defaultRate?fmt(s.defaultRate):""; rateInp.placeholder="1000"; rateInp.style.width="70px";
+  rateInp.addEventListener("input",function(){var v=parseFloat(rateInp.value.replace(",",".")); if(!isNaN(v)){s.defaultRate=v; S.setSettings(s);}});
+  var rateRight=div(""); rateRight.style.cssText="display:flex;align-items:center;gap:4px";
+  rateRight.appendChild(rateInp); var krSpan=document.createElement("span"); krSpan.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; krSpan.textContent="kr/t"; rateRight.appendChild(krSpan);
+  var r3=div("srow");
+  var r3left=div(""); r3left.appendChild(div("srlbl","Standardpris")); r3left.appendChild(div("srsub","Bruges hvis kunden ikke har specifik pris")); r3.appendChild(r3left); r3.appendChild(rateRight);
+  container.appendChild(sgrp([r3]));
+
+  // Per-customer rates
+  if (customers.length>0) {
+    var syncLbl=div("slbl"); syncLbl.innerHTML="<span>Timepris per kunde</span>";
+    var syncSmall=document.createElement("button"); syncSmall.style.cssText="background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase"; syncSmall.textContent="↻ SYNC";
+    syncSmall.addEventListener("click",function(){doSync(syncSmall);});
+    syncLbl.appendChild(syncSmall);
+    container.appendChild(syncLbl);
+    var crows=customers.map(function(c){
+      var cr=div("srow"); cr.style.flexWrap="nowrap";
+      var cl=div(""); cl.style.cssText="min-width:0;flex:1;margin-right:12px";
+      cl.appendChild(div("srlbl",c.name)); cl.appendChild(div("srsub","Nr. "+c.number));
+      var cright=div(""); cright.style.cssText="display:flex;align-items:center;gap:4px;flex-shrink:0";
+      var ci=document.createElement("input"); ci.className="srinp"; ci.type="text"; ci.inputMode="decimal"; ci.value=c.rate?fmt(c.rate):""; ci.placeholder=s.defaultRate?fmt(s.defaultRate):"Standard"; ci.style.width="70px";
+      ci.addEventListener("input",function(){var v=parseFloat(ci.value.replace(",",".")); S.setCustomerRate(c.number,isNaN(v)?null:v);});
+      var ks=document.createElement("span"); ks.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; ks.textContent="kr/t";
+      cright.appendChild(ci); cright.appendChild(ks);
+      cr.appendChild(cl); cr.appendChild(cright);
+      return cr;
+    });
+    container.appendChild(sgrp(crows));
+  }
+
+  // e-conomic connection
+  container.appendChild(div("slbl","<span>e-conomic forbindelse</span>"));
+  var tok1=div("srow");
+  var tok1l=div(""); tok1l.appendChild(div("srlbl","App Secret Token")); tok1l.appendChild(div("srsub","ECONOMIC_APP_SECRET i Vercel")); tok1.appendChild(tok1l);
+  tok1.appendChild(span("srval", cfg.appSecret ? "✓ Sat" : "✗ Mangler"));
+  var tok2=div("srow");
+  var tok2l=div(""); tok2l.appendChild(div("srlbl","Agreement Grant Token")); tok2l.appendChild(div("srsub","ECONOMIC_AGREEMENT_TOKEN i Vercel")); tok2.appendChild(tok2l);
+  tok2.appendChild(span("srval", cfg.agreementToken ? "✓ Sat" : "✗ Mangler"));
+  container.appendChild(sgrp([tok1,tok2]));
+
+  // Sync button
+  var syncBtn=document.createElement("button"); syncBtn.className="btns"; syncBtn.innerHTML=ICONS.refresh+" Synkroniser kunder fra e-conomic";
+  syncBtn.addEventListener("click",function(){doSync(syncBtn);});
+  container.appendChild(syncBtn);
+
+  // Footer
+  var footer=div(""); footer.style.cssText="margin-top:40px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--subtle);letter-spacing:.1em";
+  footer.textContent="TIMELOG v1.0 · e-CONOMIC INTEGRATION";
+  container.appendChild(footer);
+}
+
+async function doSync(btn) {
+  var origHTML=btn.innerHTML; btn.innerHTML="Synkroniserer…"; btn.disabled=true;
+  try {
+    var cs=await API.getCustomers(); S.mergeCustomers(cs);
+    toast("✓ "+cs.length+" kunder synkroniseret");
+    rerender();
+  } catch(e) {
+    toast("Fejl: "+e.message);
+    btn.innerHTML=origHTML; btn.disabled=false;
+  }
+}
+
+// ─── ROUTER ──────────────────────────────────────────────────────
+var VIEWS=[
+  {id:"log",     label:"Timer",    icon:"clock"},
+  {id:"history", label:"Historik", icon:"history"},
+  {id:"invoices",label:"Kladder",  icon:"file"},
+  {id:"settings",label:"Konto",    icon:"user"}
+];
+var currentView="log";
+
+function rerender() {
+  var vw=document.getElementById("vwrap");
+  var nb=document.getElementById("navbar");
+  var inner=div("view");
+
+  if (currentView==="log")      buildLogView(inner);
+  else if (currentView==="history")  buildHistoryView(inner);
+  else if (currentView==="invoices") buildInvoicesView(inner);
+  else if (currentView==="settings") buildSettingsView(inner);
+
+  vw.innerHTML=""; vw.appendChild(inner);
+
+  // Navbar
+  nb.innerHTML="";
+  VIEWS.forEach(function(v){
+    var btn=document.createElement("button");
+    btn.className="nbtn"+(currentView===v.id?" on":"");
+    btn.innerHTML=ICONS[v.icon]+'<span class="nlbl">'+v.label+'</span>';
+    btn.addEventListener("click",function(){
+      if (currentView===v.id) return;
+      currentView=v.id;
+      if (v.id==="invoices"&&DR.drafts===null) loadDrafts();
+      else rerender();
+    });
+    nb.appendChild(btn);
+  });
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded",function(){
+  LS.rate = fmt(S.settings().defaultRate||1000);
+  rerender();
+});
+</script>
+</body>
+</html>

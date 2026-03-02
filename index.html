@@ -156,6 +156,29 @@ textarea{resize:none}
 .spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
 .spin-dark{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;margin:0 auto 14px}
 @keyframes sp{to{transform:rotate(360deg)}}
+
+/* SCAN VIEW */
+.scan-drop{border:2px dashed var(--border);border-radius:var(--r);padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--white);margin-bottom:16px}
+.scan-drop:hover{border-color:var(--accent);background:var(--accent-bg)}
+.scan-drop svg{width:36px;height:36px;stroke:var(--muted);fill:none;stroke-width:1.4;margin-bottom:10px}
+.scan-drop.has-img{padding:0;overflow:hidden;border-style:solid;border-color:var(--accent)}
+.scan-drop img{width:100%;max-height:260px;object-fit:contain;display:block}
+.scan-preview{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.scan-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+.scan-row:last-child{border-bottom:none}
+.scan-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.scan-val{font-size:15px;font-weight:500}
+.scan-edit{background:none;border:none;outline:none;font-family:var(--font);font-size:15px;font-weight:500;color:var(--text);text-align:right;width:100%}
+.avance-row{background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.avance-left{font-size:13px;color:var(--accent);font-weight:500}
+.avance-total{font-size:18px;font-weight:600;color:var(--accent)}
+.avance-sub{font-family:var(--mono);font-size:10px;color:var(--accent);opacity:.7;margin-top:2px}
+.pct-pills{display:flex;gap:6px;margin-top:8px}
+.pct-pill{padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);cursor:pointer}
+.pct-pill.on{background:var(--accent);border-color:var(--accent);color:white}
+.ai-thinking{display:flex;flex-direction:column;align-items:center;padding:40px 20px;gap:12px}
+.ai-thinking .spin-dark{width:32px;height:32px}
+.ai-lbl{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em}
 </style>
 </head>
 <body>
@@ -355,7 +378,8 @@ var ICONS = {
   user:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
   send:    '<svg viewBox="0 0 24 24"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9A9 9 0 0120.5 15M20.5 15A9 9 0 013.5 9"/></svg>',
-  chevron: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>'
+  chevron: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
+  camera:  '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>'
 };
 
 function el(tag, attrs, children) {
@@ -839,10 +863,258 @@ async function doSync(btn) {
   }
 }
 
+
+// ─── SCAN VIEW ───────────────────────────────────────────────────
+var SS = {
+  imageData: null,
+  imagePreview: null,
+  scanning: false,
+  result: null,  // {supplier, date, amount, description}
+  avancePct: 0,
+  customer: null
+};
+
+function buildScanView(container) {
+  container.innerHTML = "";
+  var customers = S.customers();
+
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Scan faktura")); container.appendChild(vhdr);
+
+  // AI thinking state
+  if (SS.scanning) {
+    var think=div("ai-thinking");
+    think.appendChild(div("spin-dark",""));
+    think.appendChild(div("ai-lbl","AI ANALYSERER FAKTURA…"));
+    container.appendChild(think);
+    return;
+  }
+
+  // Photo upload area
+  var dropLbl = div("slbl","<span>Foto af faktura</span>");
+  container.appendChild(dropLbl);
+
+  var drop = div("scan-drop" + (SS.imagePreview ? " has-img" : ""));
+  if (SS.imagePreview) {
+    var img = document.createElement("img");
+    img.src = SS.imagePreview;
+    drop.appendChild(img);
+  } else {
+    drop.innerHTML = ICONS.camera + '<div style="font-size:14px;color:var(--muted);margin-top:4px">Tryk for at tage foto eller vælg billede</div><div style="font-family:var(--mono);font-size:10px;color:var(--subtle);margin-top:6px;letter-spacing:.08em">JPG · PNG · HEIC</div>';
+  }
+
+  var fileInput = document.createElement("input");
+  fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.capture = "environment";
+  fileInput.style.display = "none";
+  fileInput.addEventListener("change", function() {
+    var file = fileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      SS.imagePreview = e.target.result;
+      SS.imageData = e.target.result.split(",")[1];
+      SS.result = null;
+      buildScanView(container);
+    };
+    reader.readAsDataURL(file);
+  });
+  drop.appendChild(fileInput);
+  drop.addEventListener("click", function() { fileInput.click(); });
+  container.appendChild(drop);
+
+  // Analyse button
+  if (SS.imageData && !SS.result) {
+    var analyseBtn = document.createElement("button");
+    analyseBtn.className = "btnp";
+    analyseBtn.innerHTML = ICONS.camera + " Analysér faktura med AI";
+    analyseBtn.addEventListener("click", function() { analyseFaktura(container); });
+    container.appendChild(analyseBtn);
+  }
+
+  // Results
+  if (SS.result) {
+    var r = SS.result;
+
+    container.appendChild(div("slbl","<span>Udlæste data — ret hvis nødvendigt</span>"));
+    var preview = div("scan-preview");
+
+    // Supplier
+    var sr1=div("scan-row"); sr1.style.flexDirection="column"; sr1.style.alignItems="flex-start";
+    sr1.appendChild(div("scan-lbl","Leverandør"));
+    var supInp=document.createElement("input"); supInp.className="scan-edit"; supInp.value=r.supplier||""; supInp.placeholder="Leverandørnavn";
+    supInp.addEventListener("input",function(){r.supplier=supInp.value;});
+    sr1.appendChild(supInp); preview.appendChild(sr1);
+
+    // Date
+    var sr2=div("scan-row");
+    var sr2l=div(""); sr2l.appendChild(div("scan-lbl","Dato")); sr2.appendChild(sr2l);
+    var dateInp=document.createElement("input"); dateInp.type="date"; dateInp.className="scan-edit"; dateInp.value=r.date||todayStr(); dateInp.style.width="140px";
+    dateInp.addEventListener("input",function(){r.date=dateInp.value;});
+    sr2.appendChild(dateInp); preview.appendChild(sr2);
+
+    // Amount
+    var sr3=div("scan-row");
+    var sr3l=div(""); sr3l.appendChild(div("scan-lbl","Beløb ex. moms")); sr3.appendChild(sr3l);
+    var amtWrap=div(""); amtWrap.style.cssText="display:flex;align-items:center;gap:4px";
+    var amtInp=document.createElement("input"); amtInp.type="text"; amtInp.inputMode="decimal"; amtInp.className="scan-edit"; amtInp.value=r.amount||""; amtInp.style.width="100px"; amtInp.style.textAlign="right";
+    amtInp.addEventListener("input",function(){r.amount=amtInp.value; updateAvance();});
+    var krSpan=document.createElement("span"); krSpan.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted);flex-shrink:0"; krSpan.textContent="kr";
+    amtWrap.appendChild(amtInp); amtWrap.appendChild(krSpan); sr3.appendChild(amtWrap); preview.appendChild(sr3);
+
+    // Description
+    var sr4=div("scan-row"); sr4.style.flexDirection="column"; sr4.style.alignItems="flex-start";
+    sr4.appendChild(div("scan-lbl","Beskrivelse"));
+    var descInp=document.createElement("input"); descInp.className="scan-edit"; descInp.value=r.description||""; descInp.placeholder="Beskrivelse til fakturalinjen";
+    descInp.addEventListener("input",function(){r.description=descInp.value;});
+    sr4.appendChild(descInp); preview.appendChild(sr4);
+
+    container.appendChild(preview);
+
+    // Avance section
+    container.appendChild(div("slbl","<span>Avance / påslag</span>"));
+    var avanceCard = div("card"); avanceCard.style.marginBottom="16px";
+    var avanceInner = div(""); avanceInner.style.padding="14px 16px";
+    avanceInner.appendChild(div("fl","Påslag %"));
+
+    var pctPills = div("pct-pills");
+    [0,5,10,15,20,25,30].forEach(function(p) {
+      var pill = div("pct-pill" + (SS.avancePct===p?" on":""), p+"%");
+      pill.addEventListener("click", function() {
+        SS.avancePct = p;
+        buildScanView(container);
+      });
+      pctPills.appendChild(pill);
+    });
+    avanceInner.appendChild(pctPills);
+
+    // Custom pct input
+    var customWrap = div(""); customWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:10px";
+    var customLbl = document.createElement("span"); customLbl.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customLbl.textContent="Andet:";
+    var customInp = document.createElement("input"); customInp.type="text"; customInp.inputMode="decimal"; customInp.placeholder="eks. 22"; customInp.style.cssText="width:60px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px;text-align:center";
+    customInp.addEventListener("input",function(){
+      var v=parseFloat(customInp.value.replace(",","."));
+      if(!isNaN(v)&&v>=0){SS.avancePct=v; buildScanView(container);}
+    });
+    var customSuffix = document.createElement("span"); customSuffix.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSuffix.textContent="%";
+    customWrap.appendChild(customLbl); customWrap.appendChild(customInp); customWrap.appendChild(customSuffix);
+    avanceInner.appendChild(customWrap);
+    avanceCard.appendChild(avanceInner);
+    container.appendChild(avanceCard);
+
+    // Avance summary box
+    var origAmt = parseFloat(String(r.amount||"0").replace(",",".")) || 0;
+    var avanceAmt = origAmt * SS.avancePct / 100;
+    var totalAmt = origAmt + avanceAmt;
+
+    var avBox = div("avance-row");
+    var avLeft = div("");
+    avLeft.appendChild(div("avance-left", "Originalbeløb: "+origAmt.toLocaleString("da-DK")+" kr"));
+    if (SS.avancePct > 0) {
+      avLeft.appendChild(div("avance-sub", "+"+SS.avancePct+"% = +"+avanceAmt.toLocaleString("da-DK")+" kr"));
+    }
+    avBox.appendChild(avLeft);
+    var avRight = div("");
+    avRight.appendChild(div("avance-total", totalAmt.toLocaleString("da-DK")+" kr"));
+    avRight.appendChild(div("avance-sub", "til kunden"));
+    avBox.appendChild(avRight);
+    container.appendChild(avBox);
+
+    // Customer picker
+    container.appendChild(div("slbl","<span>Send til kunde</span>"));
+    var ccard = div("card"); ccard.style.marginBottom="4px";
+    var crow = div("crow"); crow.style.cursor="pointer";
+    var cf = div("cf"); cf.style.cssText="display:flex;align-items:center;justify-content:space-between";
+    var cfl = div("");
+    cfl.appendChild(div("fl","Kunde"));
+    if (SS.customer) {
+      cfl.appendChild(div("fv", SS.customer.name));
+      cfl.appendChild(div("fs","Nr. "+SS.customer.number));
+    } else {
+      var cph=div("fv ph"); cph.textContent="Vælg kunde →"; cfl.appendChild(cph);
+    }
+    var cchev=div(""); cchev.innerHTML=ICONS.chevron; cchev.style.color="var(--muted)"; cchev.style.display="flex";
+    cf.appendChild(cfl); cf.appendChild(cchev); crow.appendChild(cf); ccard.appendChild(crow);
+    crow.addEventListener("click",function(){
+      if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
+      showSheet("Vælg kunde",customers.map(function(c){
+        return {name:c.name,sub:"Nr. "+c.number,checked:SS.customer&&SS.customer.number===c.number,onSelect:function(){SS.customer=c;buildScanView(container);}};
+      }));
+    });
+    container.appendChild(ccard);
+
+    // Send button
+    var sendBtn = document.createElement("button");
+    sendBtn.className = "btnp";
+    sendBtn.style.marginTop = "16px";
+    var canSend = SS.customer && r.amount && r.description;
+    sendBtn.disabled = !canSend;
+    sendBtn.innerHTML = ICONS.send + " Send til e-conomic";
+    sendBtn.addEventListener("click", function() { sendScanToEconomic(container, totalAmt); });
+    container.appendChild(sendBtn);
+
+    // Reset button
+    var resetBtn = document.createElement("button");
+    resetBtn.className = "btns";
+    resetBtn.textContent = "Scan ny faktura";
+    resetBtn.addEventListener("click", function() {
+      SS.imageData=null; SS.imagePreview=null; SS.result=null; SS.avancePct=0; SS.customer=null;
+      buildScanView(container);
+    });
+    container.appendChild(resetBtn);
+  }
+
+  function updateAvance() {
+    // just rebuild to refresh totals
+    buildScanView(container);
+  }
+}
+
+async function analyseFaktura(container) {
+  SS.scanning = true;
+  buildScanView(container);
+  try {
+    var res = await fetch("/api/scan", {
+      method: "POST",
+      headers: {"Content-Type":"application/json", "x-app-key": window.EC.appKey||""},
+      body: JSON.stringify({imageData: SS.imageData})
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    var data = await res.json();
+    SS.result = data;
+    SS.avancePct = 20; // default 20%
+  } catch(e) {
+    toast("Fejl ved analyse: "+e.message);
+  } finally {
+    SS.scanning = false;
+    buildScanView(container);
+  }
+}
+
+async function sendScanToEconomic(container, totalAmt) {
+  var r = SS.result;
+  var btn = container.querySelector(".btnp");
+  if (btn) { btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sender…'; }
+  try {
+    var fd = new Date((r.date||todayStr())+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
+    var desc = fd+" – "+r.description+(r.supplier?" ("+r.supplier+")":"")+(SS.avancePct>0?" +"+SS.avancePct+"% avance":"");
+    var dn = await API.logHours(SS.customer.number, r.date||todayStr(), desc, 1, totalAmt);
+    S.addEntry({
+      customerNumber:SS.customer.number, customerName:SS.customer.name,
+      date:r.date||todayStr(), description:desc, hours:1, hourlyRate:totalAmt,
+      draftNumber:dn, status:"sent"
+    });
+    toast("✓ Faktura sendt til kladde #"+dn);
+    SS.imageData=null; SS.imagePreview=null; SS.result=null; SS.avancePct=0; SS.customer=null;
+    buildScanView(container);
+  } catch(e) {
+    toast("Fejl: "+e.message);
+    if (btn) { btn.disabled=false; btn.innerHTML=ICONS.send+" Send til e-conomic"; }
+  }
+}
+
 // ─── ROUTER ──────────────────────────────────────────────────────
 var VIEWS=[
   {id:"log",     label:"Timer",    icon:"clock"},
-  {id:"history", label:"Historik", icon:"history"},
+  {id:"scan",    label:"Scan",     icon:"camera"},
   {id:"invoices",label:"Kladder",  icon:"file"},
   {id:"settings",label:"Konto",    icon:"user"}
 ];
@@ -856,6 +1128,7 @@ function rerender() {
   if (currentView==="log")      buildLogView(inner);
   else if (currentView==="history")  buildHistoryView(inner);
   else if (currentView==="invoices") buildInvoicesView(inner);
+  else if (currentView==="scan")     buildScanView(inner);
   else if (currentView==="settings") buildSettingsView(inner);
 
   vw.innerHTML=""; vw.appendChild(inner);

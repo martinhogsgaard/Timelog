@@ -348,8 +348,10 @@ var API = {
     var draft = await this.req("/invoices/drafts/"+draftNumber);
     var lineNumber = ((draft.lines||[]).length) + 1;
     return this.req("/invoices/drafts/"+draftNumber+"/lines","POST",{
-      lineNumber:lineNumber, description:desc, quantity:qty, unitNetPrice:price,
-      discountPercentage:0, unit:{unitNumber:1}
+      lines:[{
+        lineNumber:lineNumber, description:desc, quantity:qty, unitNetPrice:price,
+        discountPercentage:0, unit:{unitNumber:1}
+      }]
     });
   },
 

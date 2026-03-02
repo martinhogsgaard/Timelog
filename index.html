@@ -316,18 +316,32 @@ var API = {
     return (d.collection||[])[0] || null;
   },
 
+  async getFirstLayout() {
+    var d = await this.req("/layouts?pagesize=1");
+    return (d.collection||[])[0]?.layoutNumber || null;
+  },
+
+  async getCustomerName(customerNumber) {
+    var d = await this.req("/customers/"+customerNumber);
+    return d.name || "";
+  },
+
   async createDraft(customerNumber) {
-    return this.req("/invoices/drafts","POST",{
+    // Hent layout og kundenavn fra e-conomic
+    var layoutNumber = await this.getFirstLayout();
+    var customerName = await this.getCustomerName(customerNumber);
+    var body = {
       date: new Date().toISOString().split("T")[0],
       currency:"DKK",
       paymentTerms:{paymentTermsNumber:1},
       customer:{customerNumber:customerNumber},
       recipient:{
-        name:"",
+        name: customerName,
         vatZone:{vatZoneNumber:1}
-      },
-      layout:{layoutNumber:1}
-    });
+      }
+    };
+    if (layoutNumber) body.layout = {layoutNumber: layoutNumber};
+    return this.req("/invoices/drafts","POST",body);
   },
 
   async addLine(draftNumber, desc, qty, price) {

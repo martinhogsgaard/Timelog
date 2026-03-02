@@ -300,9 +300,13 @@ var API = {
   async getCustomers() {
     var d = await this.req("/customers?pagesize=100&sort=name");
     return (d.collection||[]).map(function(c){
-      var addr = "";
-      if (c.address) addr = c.address;
-      if (c.city) addr += (addr?", ":"")+c.city;
+      // e-conomic bruger: address, zip, city
+      var parts = [];
+      if (c.address)  parts.push(c.address);
+      if (c.zip)      parts.push(c.zip);
+      if (c.city)     parts.push(c.city);
+      var addr = parts.join(" ");
+      console.log("Kunde:", c.name, "Adresse:", addr, "Rå data:", JSON.stringify({address:c.address, zip:c.zip, city:c.city}));
       return {id:c.customerNumber, name:c.name, number:c.customerNumber, rate:null, address:addr};
     });
   },
@@ -1235,7 +1239,6 @@ function buildDriveView(container) {
   toContent.appendChild(div("drive-lbl","Til — vælg kunde"));
   if (DS.customer) {
     toContent.appendChild(div("drive-val", DS.customer.name));
-    if (DS.toAddress) toContent.appendChild(div("drive-detail", DS.toAddress));
   } else {
     var toPh = div("drive-val ph"); toPh.textContent = "Vælg kunde →"; toContent.appendChild(toPh);
   }
@@ -1246,11 +1249,11 @@ function buildDriveView(container) {
     showSheet("Vælg destination", customers.map(function(c){
       return {
         name: c.name,
-        sub: c.address || "Ingen adresse registreret",
+        sub: c.address || "Ingen adresse — skriv manuelt nedenunder",
         checked: DS.customer && DS.customer.number === c.number,
         onSelect: function(){
           DS.customer = c;
-          DS.toAddress = c.address || c.name;
+          DS.toAddress = c.address || "";
           DS.distanceKm = null;
           buildDriveView(container);
         }
@@ -1258,6 +1261,26 @@ function buildDriveView(container) {
     }));
   });
   routeCard.appendChild(toRow);
+
+  // Til-adresse felt — altid redigerbart
+  var toAddrRow = div("drive-row");
+  var toAddrIcon = div("drive-icon"); toAddrIcon.innerHTML = ICONS.pin;
+  toAddrIcon.style.background = "var(--bg)"; toAddrIcon.style.border = "1px solid var(--border)";
+  toAddrIcon.querySelector("svg").style.stroke = "var(--muted)";
+  toAddrRow.appendChild(toAddrIcon);
+  var toAddrContent = div("drive-content");
+  toAddrContent.appendChild(div("drive-lbl","Til-adresse"));
+  var toAddrInp = document.createElement("input");
+  toAddrInp.className = "drive-inp";
+  toAddrInp.placeholder = "Skriv eller ret destinationsadresse";
+  toAddrInp.value = DS.toAddress;
+  toAddrInp.addEventListener("input", function(){
+    DS.toAddress = toAddrInp.value;
+    DS.distanceKm = null;
+  });
+  toAddrContent.appendChild(toAddrInp);
+  toAddrRow.appendChild(toAddrContent);
+  routeCard.appendChild(toAddrRow);
   container.appendChild(routeCard);
 
   // Retur toggle

@@ -179,6 +179,35 @@ textarea{resize:none}
 .ai-thinking{display:flex;flex-direction:column;align-items:center;padding:40px 20px;gap:12px}
 .ai-thinking .spin-dark{width:32px;height:32px}
 .ai-lbl{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em}
+
+/* DRIVE VIEW */
+.drive-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.drive-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border);gap:12px}
+.drive-row:last-child{border-bottom:none}
+.drive-icon{width:36px;height:36px;background:var(--accent-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.drive-icon svg{width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:1.6}
+.drive-content{flex:1;min-width:0}
+.drive-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.drive-val{font-size:14px;font-weight:500;color:var(--text)}
+.drive-val.ph{color:var(--subtle);font-weight:400}
+.drive-inp{background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:500;color:var(--text);width:100%;padding:0}
+.drive-inp::placeholder{color:var(--subtle);font-weight:400}
+.locate-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--accent);cursor:pointer;white-space:nowrap;flex-shrink:0;letter-spacing:.05em}
+.route-box{background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);padding:16px;margin-bottom:16px}
+.route-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.route-km{font-size:28px;font-weight:300;letter-spacing:-.02em;color:var(--accent)}
+.route-km strong{font-weight:600}
+.route-kr{font-size:18px;font-weight:600;color:var(--accent)}
+.route-detail{font-family:var(--mono);font-size:10px;color:var(--accent);opacity:.7}
+.retur-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px;cursor:pointer}
+.retur-lbl{font-size:14px;font-weight:500}
+.toggle{width:44px;height:26px;background:var(--border);border-radius:13px;position:relative;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--accent)}
+.toggle-dot{width:20px;height:20px;background:white;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle.on .toggle-dot{transform:translateX(18px)}
+.sats-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.sats-pill{padding:6px 12px;border-radius:7px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);cursor:pointer}
+.sats-pill.on{background:var(--accent);border-color:var(--accent);color:white}
 </style>
 </head>
 <body>
@@ -270,7 +299,12 @@ var API = {
 
   async getCustomers() {
     var d = await this.req("/customers?pagesize=100&sort=name");
-    return (d.collection||[]).map(function(c){return {id:c.customerNumber,name:c.name,number:c.customerNumber,rate:null};});
+    return (d.collection||[]).map(function(c){
+      var addr = "";
+      if (c.address) addr = c.address;
+      if (c.city) addr += (addr?", ":"")+c.city;
+      return {id:c.customerNumber, name:c.name, number:c.customerNumber, rate:null, address:addr};
+    });
   },
 
   async findDraft(customerNumber) {
@@ -379,7 +413,9 @@ var ICONS = {
   send:    '<svg viewBox="0 0 24 24"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
   refresh: '<svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9A9 9 0 0120.5 15M20.5 15A9 9 0 013.5 9"/></svg>',
   chevron: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
-  camera:  '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>'
+  camera:  '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  car:     '<svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h1l2-4h12l2 4h1a2 2 0 012 2v6a2 2 0 01-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>',
+  pin:     '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'
 };
 
 function el(tag, attrs, children) {
@@ -1144,10 +1180,264 @@ async function sendScanToEconomic(container, totalAmt) {
   }
 }
 
+
+// ─── DRIVE VIEW ──────────────────────────────────────────────────
+var DS = {
+  fromAddress: "",
+  toAddress: "",
+  customer: null,
+  retur: true,
+  sats: 3.79,
+  distanceKm: null,
+  calculating: false,
+  date: todayStr(),
+  note: ""
+};
+
+function buildDriveView(container) {
+  container.innerHTML = "";
+  var customers = S.customers();
+
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Kørsel")); container.appendChild(vhdr);
+
+  // Fra adresse
+  container.appendChild(div("slbl","<span>Rute</span>"));
+  var routeCard = div("drive-card");
+
+  // Fra
+  var fromRow = div("drive-row");
+  var fromIcon = div("drive-icon"); fromIcon.innerHTML = ICONS.pin; fromRow.appendChild(fromIcon);
+  var fromContent = div("drive-content");
+  fromContent.appendChild(div("drive-lbl","Fra"));
+  var fromInp = document.createElement("input");
+  fromInp.className = "drive-inp"; fromInp.placeholder = "Din adresse"; fromInp.value = DS.fromAddress;
+  fromInp.addEventListener("input", function(){ DS.fromAddress = fromInp.value; DS.distanceKm = null; updateRouteBox(); });
+  fromContent.appendChild(fromInp);
+  fromRow.appendChild(fromContent);
+  var locBtn = document.createElement("button");
+  locBtn.className = "locate-btn"; locBtn.textContent = "📍 GPS";
+  locBtn.addEventListener("click", function(){ getMyLocation(fromInp, container); });
+  fromRow.appendChild(locBtn);
+  routeCard.appendChild(fromRow);
+
+  // Divider med pil
+  var divRow = div(""); divRow.style.cssText = "padding:6px 16px;font-size:18px;color:var(--muted);border-bottom:1px solid var(--border)";
+  divRow.textContent = "↓";
+  routeCard.appendChild(divRow);
+
+  // Til — vælg kunde
+  var toRow = div("drive-row"); toRow.style.cursor = "pointer";
+  var toIcon = div("drive-icon"); toIcon.innerHTML = ICONS.pin;
+  toIcon.style.background = "var(--green-bg)";
+  toIcon.querySelector("svg").style.stroke = "var(--green)";
+  toRow.appendChild(toIcon);
+  var toContent = div("drive-content");
+  toContent.appendChild(div("drive-lbl","Til — vælg kunde"));
+  if (DS.customer) {
+    toContent.appendChild(div("drive-val", DS.customer.name));
+    if (DS.toAddress) toContent.appendChild(div("drive-detail", DS.toAddress));
+  } else {
+    var toPh = div("drive-val ph"); toPh.textContent = "Vælg kunde →"; toContent.appendChild(toPh);
+  }
+  var toChev = div(""); toChev.innerHTML = ICONS.chevron; toChev.style.cssText = "color:var(--muted);display:flex;flex-shrink:0";
+  toRow.appendChild(toContent); toRow.appendChild(toChev);
+  toRow.addEventListener("click", function(){
+    if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
+    showSheet("Vælg destination", customers.map(function(c){
+      return {
+        name: c.name,
+        sub: c.address || "Ingen adresse registreret",
+        checked: DS.customer && DS.customer.number === c.number,
+        onSelect: function(){
+          DS.customer = c;
+          DS.toAddress = c.address || c.name;
+          DS.distanceKm = null;
+          buildDriveView(container);
+        }
+      };
+    }));
+  });
+  routeCard.appendChild(toRow);
+  container.appendChild(routeCard);
+
+  // Retur toggle
+  var returRow = div("retur-row");
+  returRow.addEventListener("click", function(){
+    DS.retur = !DS.retur;
+    if (DS.distanceKm) updateRouteBox();
+    buildDriveView(container);
+  });
+  var returLeft = div("");
+  returLeft.appendChild(div("retur-lbl","Tur/retur"));
+  var returSub = div(""); returSub.style.cssText="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px";
+  returSub.textContent = DS.distanceKm ? fmt(DS.retur ? DS.distanceKm*2 : DS.distanceKm)+" km i alt" : "Dobbelt afstand";
+  returLeft.appendChild(returSub);
+  var tog = div("toggle"+(DS.retur?" on":""));
+  tog.appendChild(div("toggle-dot",""));
+  returRow.appendChild(returLeft); returRow.appendChild(tog);
+  container.appendChild(returRow);
+
+  // Sats
+  container.appendChild(div("slbl","<span>Kilometersats</span>"));
+  var satsCard = div("card"); satsCard.style.marginBottom="16px";
+  var satsInner = div(""); satsInner.style.padding="13px 16px";
+  satsInner.appendChild(div("fl","Vælg sats"));
+  var satsPills = div("sats-pills");
+  [{label:"Statens sats 3,79",val:3.79},{label:"4,00",val:4.00},{label:"5,00",val:5.00}].forEach(function(s){
+    var p = div("sats-pill"+(DS.sats===s.val?" on":""), s.label+" kr/km");
+    p.addEventListener("click",function(){ DS.sats=s.val; buildDriveView(container); });
+    satsPills.appendChild(p);
+  });
+  var customSatsWrap = div(""); customSatsWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:8px";
+  var customSatsLbl = document.createElement("span"); customSatsLbl.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSatsLbl.textContent="Anden sats:";
+  var customSatsInp = document.createElement("input"); customSatsInp.type="text"; customSatsInp.inputMode="decimal"; customSatsInp.placeholder="kr/km"; customSatsInp.style.cssText="width:70px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px;text-align:center";
+  customSatsInp.addEventListener("input",function(){ var v=parseFloat(customSatsInp.value.replace(",",".")); if(!isNaN(v)&&v>0){DS.sats=v; buildDriveView(container);}});
+  var customSatsSuffix = document.createElement("span"); customSatsSuffix.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSatsSuffix.textContent="kr/km";
+  customSatsWrap.appendChild(customSatsLbl); customSatsWrap.appendChild(customSatsInp); customSatsWrap.appendChild(customSatsSuffix);
+  satsInner.appendChild(satsPills); satsInner.appendChild(customSatsWrap);
+  satsCard.appendChild(satsInner); container.appendChild(satsCard);
+
+  // Route result box
+  var routeBoxWrap = div("route-box-wrap");
+  container.appendChild(routeBoxWrap);
+
+  function updateRouteBox() {
+    routeBoxWrap.innerHTML = "";
+    if (!DS.distanceKm) return;
+    var totalKm = DS.retur ? DS.distanceKm * 2 : DS.distanceKm;
+    var totalKr = totalKm * DS.sats;
+    var box = div("route-box");
+    var top = div("route-top");
+    var kmDiv = div("route-km"); kmDiv.innerHTML = "<strong>"+fmt(totalKm)+"</strong> km";
+    var krDiv = div("route-kr"); krDiv.textContent = totalKr.toLocaleString("da-DK", {minimumFractionDigits:2, maximumFractionDigits:2})+" kr";
+    top.appendChild(kmDiv); top.appendChild(krDiv);
+    var detail = div("route-detail"); detail.textContent = (DS.retur?"Tur/retur · ":"Enkelttur · ")+fmt(DS.distanceKm)+" km x2 · "+DS.sats+" kr/km";
+    if (!DS.retur) detail.textContent = "Enkelttur · "+fmt(DS.distanceKm)+" km · "+DS.sats+" kr/km";
+    box.appendChild(top); box.appendChild(detail);
+    routeBoxWrap.appendChild(box);
+  }
+
+  if (DS.distanceKm) updateRouteBox();
+
+  // Beregn knap
+  if (DS.fromAddress && DS.toAddress && !DS.distanceKm) {
+    var calcBtn = document.createElement("button");
+    calcBtn.className = "btnp"; calcBtn.style.marginBottom="16px";
+    calcBtn.innerHTML = DS.calculating
+      ? '<span class="spin"></span> Beregner rute…'
+      : ICONS.car+" Beregn afstand";
+    calcBtn.disabled = DS.calculating;
+    calcBtn.addEventListener("click", function(){ calculateDistance(container, updateRouteBox); });
+    container.appendChild(calcBtn);
+  }
+
+  // Dato + note
+  if (DS.distanceKm) {
+    container.appendChild(div("slbl","<span>Detaljer</span>"));
+    var detCard = div("card"); detCard.style.marginBottom="16px";
+    var dateRow = div("crow two");
+    var dateCf = div("cf"); dateCf.appendChild(div("fl","Dato"));
+    var dateInp = document.createElement("input"); dateInp.type="date"; dateInp.value=DS.date; dateInp.className="fv";
+    dateInp.addEventListener("input",function(){DS.date=dateInp.value;});
+    dateCf.appendChild(dateInp);
+    var noteCf = div("cf"); noteCf.appendChild(div("fl","Note"));
+    var noteInp = document.createElement("input"); noteInp.type="text"; noteInp.className="fv"; noteInp.value=DS.note; noteInp.placeholder="Formål med kørsel";
+    noteInp.addEventListener("input",function(){DS.note=noteInp.value;});
+    noteCf.appendChild(noteInp);
+    dateRow.appendChild(dateCf); dateRow.appendChild(noteCf);
+    detCard.appendChild(dateRow); container.appendChild(detCard);
+
+    // Send knap
+    var sendBtn = document.createElement("button"); sendBtn.className="btnp";
+    sendBtn.disabled = !DS.customer;
+    sendBtn.innerHTML = ICONS.send+" Send til e-conomic";
+    sendBtn.addEventListener("click", function(){ sendDriveToEconomic(container); });
+    container.appendChild(sendBtn);
+
+    // Reset
+    var resetBtn = document.createElement("button"); resetBtn.className="btns";
+    resetBtn.textContent = "Ny kørsel";
+    resetBtn.addEventListener("click", function(){
+      DS.fromAddress=""; DS.toAddress=""; DS.customer=null; DS.distanceKm=null; DS.note=""; DS.date=todayStr();
+      buildDriveView(container);
+    });
+    container.appendChild(resetBtn);
+  }
+}
+
+function getMyLocation(inp, container) {
+  if (!navigator.geolocation) { toast("GPS ikke tilgængelig"); return; }
+  toast("Finder din placering…");
+  navigator.geolocation.getCurrentPosition(
+    async function(pos) {
+      try {
+        var lat = pos.coords.latitude, lng = pos.coords.longitude;
+        var gkey = await API.getAppKey();
+        var res = await fetch("/api/geocode?lat="+lat+"&lng="+lng, {headers:{"x-app-key":gkey||""}});
+        var data = await res.json();
+        if (data.address) {
+          DS.fromAddress = data.address;
+          inp.value = data.address;
+          DS.distanceKm = null;
+          buildDriveView(container);
+        } else {
+          toast("Kunne ikke finde adresse");
+        }
+      } catch(e) { toast("GPS fejl: "+e.message); }
+    },
+    function(err) { toast("GPS afvist — skriv adressen manuelt"); }
+  );
+}
+
+async function calculateDistance(container, updateFn) {
+  DS.calculating = true;
+  buildDriveView(container);
+  try {
+    var dkey = await API.getAppKey();
+    var res = await fetch("/api/distance?from="+encodeURIComponent(DS.fromAddress)+"&to="+encodeURIComponent(DS.toAddress), {headers:{"x-app-key":dkey||""}});
+    var data = await res.json();
+    if (data.km) {
+      DS.distanceKm = data.km;
+      DS.calculating = false;
+      buildDriveView(container);
+    } else {
+      throw new Error(data.message || "Kunne ikke beregne afstand");
+    }
+  } catch(e) {
+    DS.calculating = false;
+    toast("Fejl: "+e.message);
+    buildDriveView(container);
+  }
+}
+
+async function sendDriveToEconomic(container) {
+  var totalKm = DS.retur ? DS.distanceKm * 2 : DS.distanceKm;
+  var totalKr = totalKm * DS.sats;
+  var btn = container.querySelector(".btnp");
+  if (btn) { btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sender…'; }
+  try {
+    var fd = new Date(DS.date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
+    var desc = fd+" – Kørsel "+(DS.note?DS.note+" ":"")+DS.fromAddress+" → "+DS.customer.name+(DS.retur?" (t/r)":"")+" "+fmt(totalKm)+"km";
+    var dn = await API.logHours(DS.customer.number, DS.date, desc, 1, totalKr);
+    S.addEntry({
+      customerNumber:DS.customer.number, customerName:DS.customer.name,
+      date:DS.date, description:desc, hours:1, hourlyRate:totalKr,
+      draftNumber:dn, status:"sent"
+    });
+    toast("✓ "+fmt(totalKm)+"km sendt til kladde #"+dn);
+    DS.fromAddress=""; DS.toAddress=""; DS.customer=null; DS.distanceKm=null; DS.note=""; DS.date=todayStr();
+    buildDriveView(container);
+  } catch(e) {
+    toast("Fejl: "+e.message);
+    if (btn) { btn.disabled=false; btn.innerHTML=ICONS.send+" Send til e-conomic"; }
+  }
+}
+
 // ─── ROUTER ──────────────────────────────────────────────────────
 var VIEWS=[
   {id:"log",     label:"Timer",    icon:"clock"},
   {id:"scan",    label:"Scan",     icon:"camera"},
+  {id:"drive",   label:"Kørsel",   icon:"car"},
   {id:"invoices",label:"Kladder",  icon:"file"},
   {id:"settings",label:"Konto",    icon:"user"}
 ];
@@ -1162,6 +1452,7 @@ function rerender() {
   else if (currentView==="history")  buildHistoryView(inner);
   else if (currentView==="invoices") buildInvoicesView(inner);
   else if (currentView==="scan")     buildScanView(inner);
+  else if (currentView==="drive")    buildDriveView(inner);
   else if (currentView==="settings") buildSettingsView(inner);
 
   vw.innerHTML=""; vw.appendChild(inner);

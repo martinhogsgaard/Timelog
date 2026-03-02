@@ -1102,9 +1102,10 @@ async function analyseFaktura(container) {
   try {
     // Komprimer billedet før upload
     var compressed = await compressImage(SS.imageData, 1500);
+    var key = await API.getAppKey();
     var res = await fetch("/api/scan", {
       method: "POST",
-      headers: {"Content-Type":"application/json", "x-app-key": window.EC.appKey||""},
+      headers: {"Content-Type":"application/json", "x-app-key": key||""},
       body: JSON.stringify({imageData: compressed})
     });
     if (!res.ok) throw new Error("HTTP "+res.status);

@@ -18,7 +18,7 @@ export default async function handler(req, res) {
   if (!path || !path.startsWith("/")) return res.status(400).json({ message: "Ugyldig path" });
 
   // ── WHITELIST: kun tillad gyldige e-conomic endpoints ──
-  const allowed_paths = ["/customers", "/invoices/drafts", "/products", "/invoices/drafts/"];
+  const allowed_paths = ["/customers", "/invoices/drafts", "/products", "/invoices/drafts/", "/layouts"];
   const pathOk = allowed_paths.some(function(p){ return path.startsWith(p); });
   if (!pathOk) return res.status(400).json({ message: "Endpoint ikke tilladt" });
 

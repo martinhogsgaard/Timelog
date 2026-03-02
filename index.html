@@ -322,7 +322,10 @@ var API = {
       currency:"DKK",
       paymentTerms:{paymentTermsNumber:1},
       customer:{customerNumber:customerNumber},
-      recipient:{name:""},
+      recipient:{
+        name:"",
+        vatZone:{vatZoneNumber:1}
+      },
       layout:{layoutNumber:1}
     });
   },

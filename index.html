@@ -1394,8 +1394,10 @@ async function calculateDistance(container, updateFn) {
   buildDriveView(container);
   try {
     var dkey = await API.getAppKey();
+    console.log("Beregner afstand fra:", DS.fromAddress, "til:", DS.toAddress);
     var res = await fetch("/api/distance?from="+encodeURIComponent(DS.fromAddress)+"&to="+encodeURIComponent(DS.toAddress), {headers:{"x-app-key":dkey||""}});
     var data = await res.json();
+    console.log("Distance svar:", data);
     if (data.km) {
       DS.distanceKm = data.km;
       DS.calculating = false;

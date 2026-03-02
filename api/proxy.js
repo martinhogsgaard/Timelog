@@ -1,4 +1,5 @@
 export default async function handler(req, res) {
+  // ── CORS: kun tillad kald fra din egen Vercel domæne ──
   const origin = req.headers.origin || "";
   const allowed = process.env.ALLOWED_ORIGIN || "";
   if (allowed && origin && !origin.endsWith(allowed)) {
@@ -7,6 +8,7 @@ export default async function handler(req, res) {
 
   if (req.method !== "POST") return res.status(405).end();
 
+  // ── APP SECRET: tjek at kaldet kommer fra vores app ──
   const appKey = req.headers["x-app-key"];
   if (!appKey || appKey !== process.env.APP_KEY) {
     return res.status(401).json({ message: "Uautoriseret" });
@@ -15,6 +17,7 @@ export default async function handler(req, res) {
   const { path, method = "GET", body } = req.body;
   if (!path || !path.startsWith("/")) return res.status(400).json({ message: "Ugyldig path" });
 
+  // ── WHITELIST: kun tillad gyldige e-conomic endpoints ──
   const allowed_paths = ["/customers", "/invoices/drafts", "/products", "/invoices/drafts/"];
   const pathOk = allowed_paths.some(function(p){ return path.startsWith(p); });
   if (!pathOk) return res.status(400).json({ message: "Endpoint ikke tilladt" });

@@ -346,17 +346,20 @@ var API = {
 
   async addLine(draftNumber, desc, qty, price) {
     var draft = await this.req("/invoices/drafts/"+draftNumber);
-    var lineNumber = ((draft.lines||[]).length) + 1;
-    var line = {
+    var existingLines = draft.lines || [];
+    var lineNumber = existingLines.length + 1;
+    var productNumber = String(S.settings().productNumber||"2");
+    var newLine = {
       lineNumber: lineNumber,
       description: desc,
       quantity: qty,
       unitNetPrice: price,
       discountPercentage: 0,
       unit: {unitNumber:1},
-      product: {productNumber: String(S.settings().productNumber||"2")}
+      product: {productNumber: productNumber}
     };
-    return this.req("/invoices/drafts/"+draftNumber+"/lines","POST", line);
+    draft.lines = existingLines.concat([newLine]);
+    return this.req("/invoices/drafts/"+draftNumber, "PUT", draft);
   },
 
   async getDraftLines(draftNumber) {

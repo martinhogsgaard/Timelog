@@ -347,12 +347,16 @@ var API = {
   async addLine(draftNumber, desc, qty, price) {
     var draft = await this.req("/invoices/drafts/"+draftNumber);
     var lineNumber = ((draft.lines||[]).length) + 1;
-    return this.req("/invoices/drafts/"+draftNumber+"/lines","POST",{
-      lines:[{
-        lineNumber:lineNumber, description:desc, quantity:qty, unitNetPrice:price,
-        discountPercentage:0, unit:{unitNumber:1}
-      }]
-    });
+    var line = {
+      lineNumber: lineNumber,
+      description: desc,
+      quantity: qty,
+      unitNetPrice: price,
+      discountPercentage: 0,
+      unit: {unitNumber:1},
+      product: {productNumber: String(S.settings().productNumber||"2")}
+    };
+    return this.req("/invoices/drafts/"+draftNumber+"/lines","POST", line);
   },
 
   async getDraftLines(draftNumber) {
@@ -890,6 +894,16 @@ function buildSettingsView(container) {
   }
 
   // e-conomic connection
+  // Produkt nummer indstilling
+  container.appendChild(div("slbl","<span>Faktura indstillinger</span>"));
+  var prow = div("srow");
+  var prowl = div(""); prowl.appendChild(div("srlbl","Produktnummer")); prowl.appendChild(div("srsub","Varenr. på fakturalinjer (fx 2 = Konsulentydelse)"));
+  prow.appendChild(prowl);
+  var pinp = document.createElement("input"); pinp.className="srinp"; pinp.type="text"; pinp.inputMode="numeric"; pinp.value=s.productNumber||"2"; pinp.style.width="60px";
+  pinp.addEventListener("input",function(){ S.setSettings({productNumber:pinp.value}); });
+  prow.appendChild(pinp);
+  container.appendChild(sgrp([prow]));
+
   container.appendChild(div("slbl","<span>e-conomic forbindelse</span>"));
   var tok1=div("srow");
   var tok1l=div(""); tok1l.appendChild(div("srlbl","App Secret Token")); tok1l.appendChild(div("srsub","ECONOMIC_APP_SECRET i Vercel")); tok1.appendChild(tok1l);

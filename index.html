@@ -1068,14 +1068,44 @@ function buildScanView(container) {
   }
 }
 
+async function compressImage(base64data, maxSizeKB) {
+  maxSizeKB = maxSizeKB || 1500;
+  return new Promise(function(resolve) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement("canvas");
+      var MAX_DIM = 1600;
+      var w = img.width, h = img.height;
+      if (w > MAX_DIM || h > MAX_DIM) {
+        if (w > h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+        else { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      }
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      var quality = 0.85;
+      var result = canvas.toDataURL("image/jpeg", quality);
+      // Reducer kvalitet indtil under maxSizeKB
+      while (result.length > maxSizeKB * 1024 * 1.37 && quality > 0.3) {
+        quality -= 0.1;
+        result = canvas.toDataURL("image/jpeg", quality);
+      }
+      resolve(result.split(",")[1]);
+    };
+    img.src = "data:image/jpeg;base64," + base64data;
+  });
+}
+
 async function analyseFaktura(container) {
   SS.scanning = true;
   buildScanView(container);
   try {
+    // Komprimer billedet før upload
+    var compressed = await compressImage(SS.imageData, 1500);
     var res = await fetch("/api/scan", {
       method: "POST",
       headers: {"Content-Type":"application/json", "x-app-key": window.EC.appKey||""},
-      body: JSON.stringify({imageData: SS.imageData})
+      body: JSON.stringify({imageData: compressed})
     });
     if (!res.ok) throw new Error("HTTP "+res.status);
     var data = await res.json();

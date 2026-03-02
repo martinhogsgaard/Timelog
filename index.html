@@ -321,24 +321,29 @@ var API = {
     return (d.collection||[])[0]?.layoutNumber || null;
   },
 
-  async getCustomerName(customerNumber) {
+  async getCustomerDetails(customerNumber) {
     var d = await this.req("/customers/"+customerNumber);
-    return d.name || "";
+    return d;
   },
 
   async createDraft(customerNumber) {
-    // Hent layout og kundenavn fra e-conomic
+    // Hent layout og kundeinfo fra e-conomic
     var layoutNumber = await this.getFirstLayout();
-    var customerName = await this.getCustomerName(customerNumber);
+    var customer = await this.getCustomerDetails(customerNumber);
+    var recipient = {
+      name: customer.name || "",
+      vatZone: {vatZoneNumber: customer.vatZone?.vatZoneNumber || 1}
+    };
+    if (customer.address) recipient.address = customer.address;
+    if (customer.zip)     recipient.zip     = customer.zip;
+    if (customer.city)    recipient.city    = customer.city;
+    if (customer.country) recipient.country = customer.country;
     var body = {
       date: new Date().toISOString().split("T")[0],
-      currency:"DKK",
-      paymentTerms:{paymentTermsNumber:1},
-      customer:{customerNumber:customerNumber},
-      recipient:{
-        name: customerName,
-        vatZone:{vatZoneNumber:1}
-      }
+      currency: customer.currency?.code || "DKK",
+      paymentTerms: customer.paymentTerms ? {paymentTermsNumber: customer.paymentTerms.paymentTermsNumber} : {paymentTermsNumber:1},
+      customer: {customerNumber: customerNumber},
+      recipient: recipient
     };
     if (layoutNumber) body.layout = {layoutNumber: layoutNumber};
     return this.req("/invoices/drafts","POST",body);

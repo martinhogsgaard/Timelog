@@ -352,8 +352,8 @@ var API = {
     var newLine = {
       lineNumber: lineNumber,
       description: desc,
-      quantity: qty,
-      unitNetPrice: price,
+      quantity: Math.round(qty * 100) / 100,
+      unitNetPrice: Math.round(price * 100) / 100,
       discountPercentage: 0,
       unit: {unitNumber:1},
       product: {productNumber: productNumber}

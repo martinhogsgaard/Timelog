@@ -298,7 +298,7 @@ var API = {
   },
 
   async getCustomers() {
-   var d = await this.req("/customers?pagesize=100&sort=name%20asc");
+    var d = await this.req("/customers?pagesize=100&sort=name");
     return (d.collection||[]).map(function(c){
       // e-conomic bruger: address, zip, city
       var parts = [];
@@ -373,7 +373,7 @@ var API = {
   },
 
   async getAllDrafts() {
-   var d = await this.req("/invoices/drafts?pagesize=50&sort=draftInvoiceNumber%20desc");
+    var d = await this.req("/invoices/drafts?pagesize=50&sort=-draftInvoiceNumber");
     return d.collection||[];
   },
 
@@ -472,8 +472,7 @@ function div(cls, html) { var d=document.createElement("div"); d.className=cls; 
 function span(cls, html) { var s=document.createElement("span"); s.className=cls; s.innerHTML=html; return s; }
 
 // ─── SHEET ───────────────────────────────────────────────────────
-function showSheet(title, items, opts) {
-  opts = opts || {};
+function showSheet(title, items) {
   var overlay = div("overlay");
   var sheet = div("sheet");
   var handle = div("shandle");
@@ -481,54 +480,19 @@ function showSheet(title, items, opts) {
   sheet.appendChild(handle);
   sheet.appendChild(titleEl);
 
-  var listWrap = div("");
-
-  // Search field
-  if (opts.searchable) {
-    var searchWrap = div(""); searchWrap.style.cssText = "position:sticky;top:0;background:var(--white);padding:0 0 12px;z-index:1";
-    var searchInp = document.createElement("input");
-    searchInp.type = "text"; searchInp.placeholder = "Søg kunde…";
-    searchInp.style.cssText = "width:100%;padding:11px 14px;border:1px solid var(--border);border-radius:10px;font-family:var(--font);font-size:14px;color:var(--text);background:var(--bg);outline:none";
-    searchInp.addEventListener("input", function(){
-      var q = searchInp.value.toLowerCase().trim();
-      renderItems(q);
+  items.forEach(function(item, i) {
+    var row = div("sitem");
+    var left = div("");
+    left.appendChild(div("siname", item.name));
+    if (item.sub) left.appendChild(div("sisub", item.sub));
+    row.appendChild(left);
+    if (item.checked) row.appendChild(span("sicheck", "✓"));
+    row.addEventListener("click", function(){
+      item.onSelect();
+      document.body.removeChild(overlay);
     });
-    searchWrap.appendChild(searchInp);
-    sheet.appendChild(searchWrap);
-    setTimeout(function(){ searchInp.focus(); }, 100);
-  }
-
-  function renderItems(query) {
-    listWrap.innerHTML = "";
-    var filtered = items;
-    if (query) {
-      filtered = items.filter(function(item){
-        return item.name.toLowerCase().indexOf(query) !== -1 || (item.sub && item.sub.toLowerCase().indexOf(query) !== -1);
-      });
-    }
-    if (filtered.length === 0) {
-      var noRes = div(""); noRes.style.cssText = "padding:20px 0;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)";
-      noRes.textContent = "Ingen resultater";
-      listWrap.appendChild(noRes);
-      return;
-    }
-    filtered.forEach(function(item) {
-      var row = div("sitem");
-      var left = div("");
-      left.appendChild(div("siname", item.name));
-      if (item.sub) left.appendChild(div("sisub", item.sub));
-      row.appendChild(left);
-      if (item.checked) row.appendChild(span("sicheck", "✓"));
-      row.addEventListener("click", function(){
-        item.onSelect();
-        document.body.removeChild(overlay);
-      });
-      listWrap.appendChild(row);
-    });
-  }
-
-  renderItems("");
-  sheet.appendChild(listWrap);
+    sheet.appendChild(row);
+  });
 
   overlay.appendChild(sheet);
   overlay.addEventListener("click", function(e){
@@ -617,7 +581,7 @@ function buildLogView(container) {
           buildLogView(container);
         }
       };
-    }), {searchable:true});
+    }));
   });
   card.appendChild(crow1);
 
@@ -640,8 +604,22 @@ function buildLogView(container) {
   var hoursInp = document.createElement("input"); hoursInp.type="text"; hoursInp.inputMode="decimal"; hoursInp.value=LS.hours;
   hoursInp.placeholder="Skriv antal timer, f.eks. 3,5 eller 10,5"; hoursInp.className="fv";
   hoursInp.style.marginTop="6px"; hoursInp.style.marginBottom="12px";
-  hoursInp.addEventListener("input",function(){LS.hours=hoursInp.value; updateSubmitBtn();});
+  hoursInp.addEventListener("input",function(){LS.hours=hoursInp.value; syncPills(); updateSubmitBtn();});
   hsec.appendChild(hoursInp);
+  var hpills = div("hpills");
+  QUICK.forEach(function(h){
+    var p = div("hp"+(LS.hours===h?" on":""),h);
+    p.addEventListener("click",function(){
+      LS.hours=h; hoursInp.value=h; syncPills(); updateSubmitBtn();
+    });
+    hpills.appendChild(p);
+  });
+  function syncPills(){
+    hpills.querySelectorAll(".hp").forEach(function(p){
+      p.className="hp"+(p.textContent===LS.hours?" on":"");
+    });
+  }
+  hsec.appendChild(hpills);
   card.appendChild(hsec);
 
   // Description
@@ -1140,7 +1118,7 @@ function buildScanView(container) {
       if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
       showSheet("Vælg kunde",customers.map(function(c){
         return {name:c.name,sub:"Nr. "+c.number,checked:SS.customer&&SS.customer.number===c.number,onSelect:function(){SS.customer=c;buildScanView(container);}};
-      }), {searchable:true});
+      }));
     });
     container.appendChild(ccard);
 
@@ -1278,41 +1256,8 @@ function buildDriveView(container) {
   fromContent.appendChild(div("drive-lbl","Fra"));
   var fromInp = document.createElement("input");
   fromInp.className = "drive-inp"; fromInp.placeholder = "Din adresse"; fromInp.value = DS.fromAddress;
-  fromInp.setAttribute("autocomplete","off");
-  var acWrap = div(""); acWrap.style.cssText = "position:relative";
-  var acList = div(""); acList.style.cssText = "position:absolute;top:0;left:0;right:0;background:var(--white);border:1px solid var(--border);border-radius:10px;z-index:10;display:none;max-height:200px;overflow-y:auto;box-shadow:0 4px 16px rgba(0,0,0,.1)";
-  var _acTimer = null;
-  fromInp.addEventListener("input", function(){
-    DS.fromAddress = fromInp.value; DS.distanceKm = null;
-    clearTimeout(_acTimer);
-    if (fromInp.value.length < 3) { acList.style.display="none"; return; }
-    _acTimer = setTimeout(async function(){
-      try {
-        var akey = await API.getAppKey();
-        var res = await fetch("/api/autocomplete?q="+encodeURIComponent(fromInp.value), {headers:{"x-app-key":akey||""}});
-        var data = await res.json();
-        acList.innerHTML = "";
-        if (data.suggestions && data.suggestions.length > 0) {
-          data.suggestions.forEach(function(s){
-            var item = div(""); item.style.cssText="padding:10px 14px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--border);transition:background .1s";
-            item.textContent = s;
-            item.addEventListener("mousedown", function(e){ e.preventDefault(); });
-            item.addEventListener("click", function(){
-              DS.fromAddress = s; fromInp.value = s; acList.style.display="none"; DS.distanceKm=null;
-            });
-            item.addEventListener("mouseenter", function(){ item.style.background="var(--bg)"; });
-            item.addEventListener("mouseleave", function(){ item.style.background=""; });
-            acList.appendChild(item);
-          });
-          acList.style.display = "block";
-        } else { acList.style.display = "none"; }
-      } catch(e) { acList.style.display = "none"; }
-    }, 300);
-  });
-  fromInp.addEventListener("blur", function(){ setTimeout(function(){ acList.style.display="none"; }, 200); });
+  fromInp.addEventListener("input", function(){ DS.fromAddress = fromInp.value; DS.distanceKm = null; updateRouteBox(); });
   fromContent.appendChild(fromInp);
-  fromContent.appendChild(acWrap);
-  acWrap.appendChild(acList);
   fromRow.appendChild(fromContent);
   var locBtn = document.createElement("button");
   locBtn.className = "locate-btn"; locBtn.textContent = "📍 GPS";
@@ -1354,7 +1299,7 @@ function buildDriveView(container) {
           buildDriveView(container);
         }
       };
-    }), {searchable:true});
+    }));
   });
   routeCard.appendChild(toRow);
 
@@ -1402,7 +1347,7 @@ function buildDriveView(container) {
   var satsInner = div(""); satsInner.style.padding="13px 16px";
   satsInner.appendChild(div("fl","Vælg sats"));
   var satsPills = div("sats-pills");
-  [{label:"Statens sats 3,79",val:3.79}].forEach(function(s){
+  [{label:"Statens sats 3,79",val:3.79},{label:"4,00",val:4.00},{label:"5,00",val:5.00}].forEach(function(s){
     var p = div("sats-pill"+(DS.sats===s.val?" on":""), s.label+" kr/km");
     p.addEventListener("click",function(){ DS.sats=s.val; buildDriveView(container); });
     satsPills.appendChild(p);

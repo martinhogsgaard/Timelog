@@ -1317,8 +1317,7 @@ async function sendScanToEconomic(container, totalAmt) {
   var btn = container.querySelector(".btnp");
   if (btn) { btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sender…'; }
   try {
-    var fd = new Date((r.date||todayStr())+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
-    var desc = fd+" – "+r.description+(r.supplier?" ("+r.supplier+")":"")+(SS.avancePct>0?" +"+SS.avancePct+"% avance":"");
+    var desc = r.description+(r.supplier?" ("+r.supplier+")":"")+(SS.avancePct>0?" +"+SS.avancePct+"% avance":"");
     var dn = await API.logHours(SS.customer.number, r.date||todayStr(), desc, 1, totalAmt);
     S.addEntry({
       customerNumber:SS.customer.number, customerName:SS.customer.name,
@@ -1667,8 +1666,7 @@ async function sendDriveToEconomic(container) {
   var btn = container.querySelector(".btnp");
   if (btn) { btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sender…'; }
   try {
-    var fd = new Date(DS.date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
-    var desc = fd+" – Kørsel "+(DS.note?DS.note+" ":"")+DS.fromAddress+" → "+DS.customer.name+(DS.retur?" (t/r)":"")+" "+fmt(totalKm)+"km";
+    var desc = "Kørsel "+(DS.note?DS.note+" ":"")+DS.fromAddress+" → "+DS.customer.name+(DS.retur?" (t/r)":"")+" "+fmt(totalKm)+"km";
     var dn = await API.logHours(DS.customer.number, DS.date, desc, 1, totalKr);
     S.addEntry({
       customerNumber:DS.customer.number, customerName:DS.customer.name,

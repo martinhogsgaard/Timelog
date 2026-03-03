@@ -1386,9 +1386,6 @@ function buildDriveView(container) {
   });
   fromInp.addEventListener("blur", function(){ setTimeout(function(){ suggestBox.style.display="none"; }, 200); });
   fromContent.appendChild(fromInp);
-  suggestWrap.appendChild(fromInp);
-  suggestWrap.appendChild(suggestBox);
-  fromContent.appendChild(suggestWrap);
   fromRow.appendChild(fromContent);
   var locBtn = document.createElement("button");
   locBtn.className = "locate-btn"; locBtn.textContent = "📍 GPS";
@@ -1455,6 +1452,10 @@ function buildDriveView(container) {
   routeCard.appendChild(toAddrRow);
   container.appendChild(routeCard);
 
+  // Adresseforslag dropdown — udenfor routeCard så overflow:hidden ikke skjuler den
+  suggestBox.style.cssText = "background:var(--white);border:1px solid var(--border);border-radius:8px;z-index:100;overflow:hidden;display:none;box-shadow:0 4px 16px rgba(0,0,0,.1);margin-top:-12px;margin-bottom:8px";
+  container.appendChild(suggestBox);
+
   // Retur toggle
   var returRow = div("retur-row");
   returRow.addEventListener("click", function(){
@@ -1485,8 +1486,9 @@ function buildDriveView(container) {
   });
   var customSatsWrap = div(""); customSatsWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:8px";
   var customSatsLbl = document.createElement("span"); customSatsLbl.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSatsLbl.textContent="Anden sats:";
-  var customSatsInp = document.createElement("input"); customSatsInp.type="text"; customSatsInp.inputMode="decimal"; customSatsInp.placeholder="kr/km"; customSatsInp.style.cssText="width:70px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px;text-align:center";
-  customSatsInp.addEventListener("input",function(){ var v=parseFloat(customSatsInp.value.replace(",",".")); if(!isNaN(v)&&v>0){DS.sats=v; buildDriveView(container);}});
+  var customSatsInp = document.createElement("input"); customSatsInp.type="text"; customSatsInp.inputMode="decimal"; customSatsInp.placeholder="kr/km"; customSatsInp.style.cssText="width:70px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px;text-align:center;color:var(--text)";
+  customSatsInp.addEventListener("input",function(){ var v=parseFloat(customSatsInp.value.replace(",",".")); if(!isNaN(v)&&v>0){ DS.sats=v; }});
+  customSatsInp.addEventListener("blur",function(){ var v=parseFloat(customSatsInp.value.replace(",",".")); if(!isNaN(v)&&v>0){ DS.sats=v; buildDriveView(container); }});
   var customSatsSuffix = document.createElement("span"); customSatsSuffix.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSatsSuffix.textContent="kr/km";
   customSatsWrap.appendChild(customSatsLbl); customSatsWrap.appendChild(customSatsInp); customSatsWrap.appendChild(customSatsSuffix);
   satsInner.appendChild(satsPills); satsInner.appendChild(customSatsWrap);

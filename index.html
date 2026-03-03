@@ -1365,12 +1365,14 @@ function buildDriveView(container) {
       try {
         var akey = await API.getAppKey();
         var res = await fetch("/api/geocode?q="+encodeURIComponent(q), {headers:{"x-app-key":akey||""}});
-        var data = await res.json();
+        var text = await res.text();
+        var data;
+        try { data = JSON.parse(text); } catch(e) { console.warn("Geocode suggest ikke JSON:", text.slice(0,100)); suggestBox.style.display="none"; return; }
         var suggestions = data.suggestions || [];
         suggestBox.innerHTML = "";
         if (suggestions.length === 0) { suggestBox.style.display="none"; return; }
-        suggestions.forEach(function(s) {
-          var row = div(""); row.style.cssText = "padding:11px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)";
+        suggestions.slice(0,5).forEach(function(s) {
+          var row = div("sitem"); row.style.cssText="padding:11px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)";
           row.textContent = s;
           row.addEventListener("mousedown", function(e){ e.preventDefault(); });
           row.addEventListener("click", function(){
@@ -1381,8 +1383,8 @@ function buildDriveView(container) {
           suggestBox.appendChild(row);
         });
         suggestBox.style.display = "block";
-      } catch(e) { suggestBox.style.display="none"; }
-    }, 350);
+      } catch(e) { console.warn("Suggest fejl:", e.message); suggestBox.style.display="none"; }
+    }, 400);
   });
   fromInp.addEventListener("blur", function(){ setTimeout(function(){ suggestBox.style.display="none"; }, 200); });
   fromContent.appendChild(fromInp);
@@ -1479,19 +1481,54 @@ function buildDriveView(container) {
   var satsInner = div(""); satsInner.style.padding="13px 16px";
   satsInner.appendChild(div("fl","Vælg sats"));
   var satsPills = div("sats-pills");
-  [{label:"Statens sats 3,79",val:3.79}].forEach(function(s){
-    var p = div("sats-pill"+(DS.sats===s.val?" on":""), s.label+" kr/km");
-    p.addEventListener("click",function(){ DS.sats=s.val; buildDriveView(container); });
-    satsPills.appendChild(p);
+  var isCustomSats = DS.sats !== 3.79;
+
+  // Statens sats pill
+  var statsPill = div("sats-pill"+(DS.sats===3.79?" on":""), "Statens sats 3,79 kr/km");
+  statsPill.addEventListener("click", function(){
+    DS.sats = 3.79;
+    buildDriveView(container);
   });
-  var customSatsWrap = div(""); customSatsWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:8px";
-  var customSatsLbl = document.createElement("span"); customSatsLbl.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSatsLbl.textContent="Anden sats:";
-  var customSatsInp = document.createElement("input"); customSatsInp.type="text"; customSatsInp.inputMode="decimal"; customSatsInp.placeholder="kr/km"; customSatsInp.style.cssText="width:70px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px;text-align:center;color:var(--text)";
-  customSatsInp.addEventListener("input",function(){ var v=parseFloat(customSatsInp.value.replace(",",".")); if(!isNaN(v)&&v>0){ DS.sats=v; }});
-  customSatsInp.addEventListener("blur",function(){ var v=parseFloat(customSatsInp.value.replace(",",".")); if(!isNaN(v)&&v>0){ DS.sats=v; buildDriveView(container); }});
-  var customSatsSuffix = document.createElement("span"); customSatsSuffix.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSatsSuffix.textContent="kr/km";
-  customSatsWrap.appendChild(customSatsLbl); customSatsWrap.appendChild(customSatsInp); customSatsWrap.appendChild(customSatsSuffix);
-  satsInner.appendChild(satsPills); satsInner.appendChild(customSatsWrap);
+  satsPills.appendChild(statsPill);
+
+  // Manuel sats pill + input kombineret
+  var customSatsWrap = div(""); customSatsWrap.style.cssText="display:flex;align-items:center;gap:0;margin-top:8px";
+  var customPill = div("sats-pill"+(isCustomSats?" on":""));
+  customPill.style.cssText += ";display:flex;align-items:center;gap:4px;padding:6px 10px";
+  var customLblSpan = document.createElement("span"); customLblSpan.textContent="Manuel:"; customLblSpan.style.cssText="font-size:11px;white-space:nowrap";
+  var customSatsInp = document.createElement("input");
+  customSatsInp.type="text"; customSatsInp.inputMode="decimal";
+  customSatsInp.placeholder="0,00";
+  customSatsInp.value = isCustomSats ? String(DS.sats).replace(".",",") : "";
+  customSatsInp.style.cssText="width:52px;background:none;border:none;outline:none;font-family:var(--mono);font-size:11px;text-align:center;color:inherit;padding:0";
+  var customSuffix = document.createElement("span"); customSuffix.textContent="kr/km"; customSuffix.style.cssText="font-size:11px;white-space:nowrap";
+
+  customSatsInp.addEventListener("focus", function(){
+    // Markér som aktiv
+    customPill.className = "sats-pill on";
+    statsPill.className = "sats-pill";
+  });
+  customSatsInp.addEventListener("input", function(){
+    var v = parseFloat(customSatsInp.value.replace(",","."));
+    if (!isNaN(v) && v > 0) DS.sats = v;
+  });
+  customSatsInp.addEventListener("blur", function(){
+    var v = parseFloat(customSatsInp.value.replace(",","."));
+    if (!isNaN(v) && v > 0) {
+      DS.sats = v;
+    } else {
+      // Ugyldigt input — tilbage til statens sats
+      DS.sats = 3.79;
+      buildDriveView(container);
+    }
+  });
+
+  customPill.appendChild(customLblSpan);
+  customPill.appendChild(customSatsInp);
+  customPill.appendChild(customSuffix);
+  customPill.addEventListener("click", function(){ customSatsInp.focus(); });
+  satsPills.appendChild(customPill);
+  satsInner.appendChild(satsPills);
   satsCard.appendChild(satsInner); container.appendChild(satsCard);
 
   // Route result box

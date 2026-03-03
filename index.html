@@ -1225,7 +1225,7 @@ function buildScanView(container) {
     cf.appendChild(cfl); cf.appendChild(cchev); crow.appendChild(cf); ccard.appendChild(crow);
     crow.addEventListener("click",function(){
       if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
-      showSheet("Vælg kunde",customers.map(function(c){
+      showSheetWithSearch("Vælg kunde",customers.map(function(c){
         return {name:c.name,sub:"Nr. "+c.number,checked:SS.customer&&SS.customer.number===c.number,onSelect:function(){SS.customer=c;buildScanView(container);}};
       }));
     });

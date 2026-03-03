@@ -229,7 +229,6 @@ window.EC = {
 
 // ─── STORAGE ─────────────────────────────────────────────────────
 var S = {
-  // localStorage som lokal cache
   g: function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
   s: function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
   customers: function(){return this.g("tl_c",[])},
@@ -263,15 +262,15 @@ var S = {
 var SYNC = {
   _timer: null,
   _syncing: false,
+  _pending: {},
 
-  // Hent data fra cloud og opdater localStorage
   pull: async function() {
     try {
       var key = await API.getAppKey();
       var res = await fetch("/api/store", {
         headers: { "x-app-key": key||"" }
       });
-      if (!res.ok) return;
+      if (!res.ok) return false;
       var data = await res.json();
       if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
       if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
@@ -283,10 +282,9 @@ var SYNC = {
     }
   },
 
-  // Skriv data til cloud (debounced — venter 1.5s efter sidste ændring)
   push: function(payload) {
     clearTimeout(this._timer);
-    this._pending = Object.assign(this._pending||{}, payload);
+    this._pending = Object.assign(this._pending, payload);
     var self = this;
     this._timer = setTimeout(async function() {
       if (self._syncing) return;
@@ -445,7 +443,7 @@ var API = {
 var DAYS   = ["Søndag","Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag"];
 var MONTHS = ["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"];
 var MONTHS_S = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
-var QUICK  = ["0,5","1","1,5","2","2,5","3","4","4,5","5","6","7","7,5","8"];
+var QUICK  = []; // Hurtigknapper fjernet
 
 function fmt(n) {
   if (n===null||n===undefined) return "–";
@@ -555,7 +553,61 @@ function showSheet(title, items) {
   document.body.appendChild(overlay);
 }
 
-// ─── VIEWS ───────────────────────────────────────────────────────
+// ─── SHEET WITH SEARCH ───────────────────────────────────────────
+function showSheetWithSearch(title, items) {
+  var overlay = div("overlay");
+  var sheet = div("sheet");
+  var handle = div("shandle");
+  var titleEl = div("stitle", title);
+  sheet.appendChild(handle);
+  sheet.appendChild(titleEl);
+
+  // Search input
+  var searchWrap = div("");
+  searchWrap.style.cssText = "position:sticky;top:0;background:var(--white);padding-bottom:12px;z-index:1";
+  var searchInp = document.createElement("input");
+  searchInp.type = "text";
+  searchInp.placeholder = "Søg kunde…";
+  searchInp.style.cssText = "width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font);font-size:15px;color:var(--text);outline:none";
+  searchWrap.appendChild(searchInp);
+  sheet.appendChild(searchWrap);
+
+  var listWrap = div("");
+  sheet.appendChild(listWrap);
+
+  function renderList(filter) {
+    listWrap.innerHTML = "";
+    var filtered = filter
+      ? items.filter(function(i){ return i.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0; })
+      : items;
+    filtered.forEach(function(item) {
+      var row = div("sitem");
+      var left = div("");
+      left.appendChild(div("siname", item.name));
+      if (item.sub) left.appendChild(div("sisub", item.sub));
+      row.appendChild(left);
+      if (item.checked) row.appendChild(span("sicheck", "✓"));
+      row.addEventListener("click", function(){
+        item.onSelect();
+        document.body.removeChild(overlay);
+      });
+      listWrap.appendChild(row);
+    });
+    if (filtered.length === 0) {
+      listWrap.appendChild(div("", "<div style='padding:20px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Ingen resultater</div>"));
+    }
+  }
+
+  searchInp.addEventListener("input", function(){ renderList(searchInp.value); });
+  renderList("");
+  setTimeout(function(){ searchInp.focus(); }, 300);
+
+  overlay.appendChild(sheet);
+  overlay.addEventListener("click", function(e){
+    if (e.target===overlay) document.body.removeChild(overlay);
+  });
+  document.body.appendChild(overlay);
+}
 
 // State for log view
 var LS = {
@@ -623,7 +675,7 @@ function buildLogView(container) {
   crow1.appendChild(cf1);
   crow1.addEventListener("click", function(){
     if (customers.length===0) { toast("Gå til Konto og synkroniser kunder først"); return; }
-    showSheet("Vælg kunde", customers.map(function(c){
+    showSheetWithSearch("Vælg kunde", customers.map(function(c){
       var sub = "Nr. "+c.number+(c.rate ? " · "+fmt(c.rate)+" kr/t" : "");
       return {
         name: c.name, sub: sub,
@@ -660,20 +712,6 @@ function buildLogView(container) {
   hoursInp.style.marginTop="6px"; hoursInp.style.marginBottom="12px";
   hoursInp.addEventListener("input",function(){LS.hours=hoursInp.value; syncPills(); updateSubmitBtn();});
   hsec.appendChild(hoursInp);
-  var hpills = div("hpills");
-  QUICK.forEach(function(h){
-    var p = div("hp"+(LS.hours===h?" on":""),h);
-    p.addEventListener("click",function(){
-      LS.hours=h; hoursInp.value=h; syncPills(); updateSubmitBtn();
-    });
-    hpills.appendChild(p);
-  });
-  function syncPills(){
-    hpills.querySelectorAll(".hp").forEach(function(p){
-      p.className="hp"+(p.textContent===LS.hours?" on":"");
-    });
-  }
-  hsec.appendChild(hpills);
   card.appendChild(hsec);
 
   // Description
@@ -1310,8 +1348,47 @@ function buildDriveView(container) {
   fromContent.appendChild(div("drive-lbl","Fra"));
   var fromInp = document.createElement("input");
   fromInp.className = "drive-inp"; fromInp.placeholder = "Din adresse"; fromInp.value = DS.fromAddress;
-  fromInp.addEventListener("input", function(){ DS.fromAddress = fromInp.value; DS.distanceKm = null; updateRouteBox(); });
+  fromInp.setAttribute("autocomplete", "street-address");
+
+  // Adresseforslag via autocomplete
+  var suggestWrap = div(""); suggestWrap.style.cssText = "position:relative";
+  var suggestBox = div(""); suggestBox.style.cssText = "position:absolute;left:0;right:0;top:100%;background:var(--white);border:1px solid var(--border);border-radius:8px;z-index:100;overflow:hidden;display:none;box-shadow:0 4px 16px rgba(0,0,0,.1)";
+
+  var _addrTimer;
+  fromInp.addEventListener("input", function(){
+    DS.fromAddress = fromInp.value;
+    DS.distanceKm = null;
+    clearTimeout(_addrTimer);
+    var q = fromInp.value.trim();
+    if (q.length < 3) { suggestBox.style.display="none"; return; }
+    _addrTimer = setTimeout(async function(){
+      try {
+        var akey = await API.getAppKey();
+        var res = await fetch("/api/geocode?q="+encodeURIComponent(q), {headers:{"x-app-key":akey||""}});
+        var data = await res.json();
+        var suggestions = data.suggestions || [];
+        suggestBox.innerHTML = "";
+        if (suggestions.length === 0) { suggestBox.style.display="none"; return; }
+        suggestions.forEach(function(s) {
+          var row = div(""); row.style.cssText = "padding:11px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)";
+          row.textContent = s;
+          row.addEventListener("mousedown", function(e){ e.preventDefault(); });
+          row.addEventListener("click", function(){
+            DS.fromAddress = s;
+            fromInp.value = s;
+            suggestBox.style.display = "none";
+          });
+          suggestBox.appendChild(row);
+        });
+        suggestBox.style.display = "block";
+      } catch(e) { suggestBox.style.display="none"; }
+    }, 350);
+  });
+  fromInp.addEventListener("blur", function(){ setTimeout(function(){ suggestBox.style.display="none"; }, 200); });
   fromContent.appendChild(fromInp);
+  suggestWrap.appendChild(fromInp);
+  suggestWrap.appendChild(suggestBox);
+  fromContent.appendChild(suggestWrap);
   fromRow.appendChild(fromContent);
   var locBtn = document.createElement("button");
   locBtn.className = "locate-btn"; locBtn.textContent = "📍 GPS";
@@ -1341,7 +1418,7 @@ function buildDriveView(container) {
   toRow.appendChild(toContent); toRow.appendChild(toChev);
   toRow.addEventListener("click", function(){
     if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
-    showSheet("Vælg destination", customers.map(function(c){
+    showSheetWithSearch("Vælg destination", customers.map(function(c){
       return {
         name: c.name,
         sub: c.address || "Ingen adresse — skriv manuelt nedenunder",
@@ -1401,7 +1478,7 @@ function buildDriveView(container) {
   var satsInner = div(""); satsInner.style.padding="13px 16px";
   satsInner.appendChild(div("fl","Vælg sats"));
   var satsPills = div("sats-pills");
-  [{label:"Statens sats 3,79",val:3.79},{label:"4,00",val:4.00},{label:"5,00",val:5.00}].forEach(function(s){
+  [{label:"Statens sats 3,79",val:3.79}].forEach(function(s){
     var p = div("sats-pill"+(DS.sats===s.val?" on":""), s.label+" kr/km");
     p.addEventListener("click",function(){ DS.sats=s.val; buildDriveView(container); });
     satsPills.appendChild(p);
@@ -1596,13 +1673,12 @@ function rerender() {
 // ─── INIT ────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async function(){
   LS.rate = fmt(S.settings().defaultRate||1000);
-  rerender(); // vis med lokale data med det samme
+  rerender();
 
   // Hent seneste data fra cloud i baggrunden
   var synced = await SYNC.pull();
   if (synced) {
     LS.rate = fmt(S.settings().defaultRate||1000);
-    // Opdater kun hvis vi er på en relevant view
     rerender();
   }
 });

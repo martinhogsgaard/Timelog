@@ -181,7 +181,7 @@ textarea{resize:none}
 .ai-lbl{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em}
 
 /* DRIVE VIEW */
-.drive-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.drive-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:visible;margin-bottom:16px}
 .drive-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border);gap:12px}
 .drive-row:last-child{border-bottom:none}
 .drive-icon{width:36px;height:36px;background:var(--accent-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
@@ -1394,6 +1394,8 @@ function buildDriveView(container) {
   locBtn.addEventListener("click", function(){ getMyLocation(fromInp, container); });
   fromRow.appendChild(locBtn);
   routeCard.appendChild(fromRow);
+  suggestBox.style.cssText = "border-top:1px solid var(--border);overflow:hidden;display:none;border-radius:0";
+  routeCard.appendChild(suggestBox);
 
   // Divider med pil
   var divRow = div(""); divRow.style.cssText = "padding:6px 16px;font-size:18px;color:var(--muted);border-bottom:1px solid var(--border)";
@@ -1453,9 +1455,6 @@ function buildDriveView(container) {
   toAddrRow.appendChild(toAddrContent);
   routeCard.appendChild(toAddrRow);
   container.appendChild(routeCard);
-
-  // Adresseforslag dropdown — udenfor routeCard så overflow:hidden ikke skjuler den
-  container.appendChild(suggestBox);
 
   // Retur toggle
   var returRow = div("retur-row");

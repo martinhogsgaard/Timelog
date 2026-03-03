@@ -262,9 +262,9 @@ var S = {
 var API = {
   async getAppKey() {
     if (window.EC.appKey) return window.EC.appKey;
-    var res = await fetch("/api/config");
+    var res = await fetch("/api/init");
     var data = await res.json();
-    window.EC.appKey = data.appKey;
+    window.EC.appKey = data.k;
     return window.EC.appKey;
   },
 
@@ -310,7 +310,6 @@ var API = {
       if (c.zip)      parts.push(c.zip);
       if (c.city)     parts.push(c.city);
       var addr = parts.join(" ");
-      console.log("Kunde:", c.name, "Adresse:", addr, "Rå data:", JSON.stringify({address:c.address, zip:c.zip, city:c.city}));
       return {id:c.customerNumber, name:c.name, number:c.customerNumber, rate:null, address:addr};
     });
   },
@@ -1308,7 +1307,6 @@ async function compressImage(base64data) {
         result = canvas.toDataURL("image/jpeg", quality);
       }
       var kb = Math.round(result.length / 1024 * 0.75);
-      console.log("Billede komprimeret til ~" + kb + "KB (kvalitet: " + Math.round(quality*100) + "%)");
       resolve(result.split(",")[1]);
     };
     img.src = "data:image/jpeg;base64," + base64data;
@@ -1669,10 +1667,8 @@ async function calculateDistance(container, updateFn) {
   buildDriveView(container);
   try {
     var dkey = await API.getAppKey();
-    console.log("Beregner afstand fra:", DS.fromAddress, "til:", DS.toAddress);
     var res = await fetch("/api/distance?from="+encodeURIComponent(DS.fromAddress)+"&to="+encodeURIComponent(DS.toAddress), {headers:{"x-app-key":dkey||""}});
     var data = await res.json();
-    console.log("Distance svar:", data);
     if (data.km) {
       DS.distanceKm = data.km;
       DS.calculating = false;

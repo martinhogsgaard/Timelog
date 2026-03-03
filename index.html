@@ -258,54 +258,6 @@ var S = {
   }
 };
 
-// ─── CLOUD SYNC ──────────────────────────────────────────────────
-var SYNC = {
-  _timer: null,
-  _syncing: false,
-  _pending: {},
-
-  pull: async function() {
-    try {
-      var key = await API.getAppKey();
-      var res = await fetch("/api/store", {
-        headers: { "x-app-key": key||"" }
-      });
-      if (!res.ok) return false;
-      var data = await res.json();
-      if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
-      if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
-      if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
-      return true;
-    } catch(e) {
-      console.warn("Sync pull fejl:", e.message);
-      return false;
-    }
-  },
-
-  push: function(payload) {
-    clearTimeout(this._timer);
-    this._pending = Object.assign(this._pending, payload);
-    var self = this;
-    this._timer = setTimeout(async function() {
-      if (self._syncing) return;
-      self._syncing = true;
-      try {
-        var key = await API.getAppKey();
-        await fetch("/api/store", {
-          method: "POST",
-          headers: { "Content-Type":"application/json", "x-app-key": key||"" },
-          body: JSON.stringify(self._pending)
-        });
-        self._pending = {};
-      } catch(e) {
-        console.warn("Sync push fejl:", e.message);
-      } finally {
-        self._syncing = false;
-      }
-    }, 1500);
-  }
-};
-
 // ─── API ─────────────────────────────────────────────────────────
 var API = {
   async getAppKey() {
@@ -436,6 +388,54 @@ var API = {
     var fd = new Date(date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
     await this.addLine(dn, fd+" – "+description, hours, rate);
     return dn;
+  }
+};
+
+// ─── CLOUD SYNC ──────────────────────────────────────────────────
+var SYNC = {
+  _timer: null,
+  _syncing: false,
+  _pending: {},
+
+  pull: async function() {
+    try {
+      var key = await API.getAppKey();
+      var res = await fetch("/api/store", {
+        headers: { "x-app-key": key||"" }
+      });
+      if (!res.ok) return false;
+      var data = await res.json();
+      if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
+      if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
+      if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
+      return true;
+    } catch(e) {
+      console.warn("Sync pull fejl:", e.message);
+      return false;
+    }
+  },
+
+  push: function(payload) {
+    clearTimeout(this._timer);
+    this._pending = Object.assign(this._pending, payload);
+    var self = this;
+    this._timer = setTimeout(async function() {
+      if (self._syncing) return;
+      self._syncing = true;
+      try {
+        var key = await API.getAppKey();
+        await fetch("/api/store", {
+          method: "POST",
+          headers: { "Content-Type":"application/json", "x-app-key": key||"" },
+          body: JSON.stringify(self._pending)
+        });
+        self._pending = {};
+      } catch(e) {
+        console.warn("Sync push fejl:", e.message);
+      } finally {
+        self._syncing = false;
+      }
+    }, 1500);
   }
 };
 
@@ -1036,6 +1036,33 @@ function buildSettingsView(container) {
   container.appendChild(syncBtn);
 
   // Footer
+  // Upload alt data til cloud
+  var uploadBtn=document.createElement("button"); uploadBtn.className="btns"; uploadBtn.innerHTML=ICONS.refresh+" Upload alt data til cloud";
+  uploadBtn.addEventListener("click", async function(){
+    uploadBtn.innerHTML="Uploader…"; uploadBtn.disabled=true;
+    try {
+      var key = await API.getAppKey();
+      var res = await fetch("/api/store", {
+        method: "POST",
+        headers: {"Content-Type":"application/json","x-app-key":key||""},
+        body: JSON.stringify({
+          entries: S.entries(),
+          customers: S.customers(),
+          settings: S.settings()
+        })
+      });
+      var data = await res.json();
+      if (data.ok) toast("✓ Alt data uploadet til cloud");
+      else toast("Fejl: "+JSON.stringify(data));
+    } catch(e) {
+      toast("Fejl: "+e.message);
+    } finally {
+      uploadBtn.innerHTML=ICONS.refresh+" Upload alt data til cloud";
+      uploadBtn.disabled=false;
+    }
+  });
+  container.appendChild(uploadBtn);
+
   var footer=div(""); footer.style.cssText="margin-top:40px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--subtle);letter-spacing:.1em";
   footer.textContent="TIMELOG v1.0 · e-CONOMIC INTEGRATION";
   container.appendChild(footer);

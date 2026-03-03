@@ -229,14 +229,19 @@ window.EC = {
 
 // ─── STORAGE ─────────────────────────────────────────────────────
 var S = {
+  // localStorage som lokal cache
   g: function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
   s: function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
   customers: function(){return this.g("tl_c",[])},
-  setCustomers: function(v){this.s("tl_c",v)},
+  setCustomers: function(v){this.s("tl_c",v); SYNC.push({customers:v});},
   entries: function(){return this.g("tl_e",[])},
-  setEntries: function(v){this.s("tl_e",v)},
+  setEntries: function(v){this.s("tl_e",v); SYNC.push({entries:v});},
   settings: function(){return this.g("tl_s",{defaultRate:1000,userName:"",userInitials:""})},
-  setSettings: function(v){this.s("tl_s",v)},
+  setSettings: function(v){
+    var merged=Object.assign(this.g("tl_s",{}),v);
+    this.s("tl_s",merged);
+    SYNC.push({settings:merged});
+  },
   addEntry: function(e){
     var entry=Object.assign({id:Date.now().toString(),createdAt:new Date().toISOString(),status:"sent"},e);
     this.setEntries([entry].concat(this.entries()));
@@ -251,6 +256,55 @@ var S = {
   },
   setCustomerRate: function(num,rate){
     this.setCustomers(this.customers().map(function(c){return c.number===num?Object.assign({},c,{rate:rate}):c;}));
+  }
+};
+
+// ─── CLOUD SYNC ──────────────────────────────────────────────────
+var SYNC = {
+  _timer: null,
+  _syncing: false,
+
+  // Hent data fra cloud og opdater localStorage
+  pull: async function() {
+    try {
+      var key = await API.getAppKey();
+      var res = await fetch("/api/store", {
+        headers: { "x-app-key": key||"" }
+      });
+      if (!res.ok) return;
+      var data = await res.json();
+      if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
+      if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
+      if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
+      return true;
+    } catch(e) {
+      console.warn("Sync pull fejl:", e.message);
+      return false;
+    }
+  },
+
+  // Skriv data til cloud (debounced — venter 1.5s efter sidste ændring)
+  push: function(payload) {
+    clearTimeout(this._timer);
+    this._pending = Object.assign(this._pending||{}, payload);
+    var self = this;
+    this._timer = setTimeout(async function() {
+      if (self._syncing) return;
+      self._syncing = true;
+      try {
+        var key = await API.getAppKey();
+        await fetch("/api/store", {
+          method: "POST",
+          headers: { "Content-Type":"application/json", "x-app-key": key||"" },
+          body: JSON.stringify(self._pending)
+        });
+        self._pending = {};
+      } catch(e) {
+        console.warn("Sync push fejl:", e.message);
+      } finally {
+        self._syncing = false;
+      }
+    }, 1500);
   }
 };
 
@@ -1540,9 +1594,17 @@ function rerender() {
 }
 
 // ─── INIT ────────────────────────────────────────────────────────
-document.addEventListener("DOMContentLoaded",function(){
+document.addEventListener("DOMContentLoaded", async function(){
   LS.rate = fmt(S.settings().defaultRate||1000);
-  rerender();
+  rerender(); // vis med lokale data med det samme
+
+  // Hent seneste data fra cloud i baggrunden
+  var synced = await SYNC.pull();
+  if (synced) {
+    LS.rate = fmt(S.settings().defaultRate||1000);
+    // Opdater kun hvis vi er på en relevant view
+    rerender();
+  }
 });
 </script>
 </body>

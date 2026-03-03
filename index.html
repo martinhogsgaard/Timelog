@@ -1351,8 +1351,8 @@ function buildDriveView(container) {
   fromInp.setAttribute("autocomplete", "street-address");
 
   // Adresseforslag via autocomplete
-  var suggestWrap = div(""); suggestWrap.style.cssText = "position:relative";
-  var suggestBox = div(""); suggestBox.style.cssText = "position:absolute;left:0;right:0;top:100%;background:var(--white);border:1px solid var(--border);border-radius:8px;z-index:100;overflow:hidden;display:none;box-shadow:0 4px 16px rgba(0,0,0,.1)";
+  var suggestBox = div(""); 
+  suggestBox.style.cssText = "background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-bottom:8px";
 
   var _addrTimer;
   fromInp.addEventListener("input", function(){
@@ -1364,7 +1364,7 @@ function buildDriveView(container) {
     _addrTimer = setTimeout(async function(){
       try {
         var akey = await API.getAppKey();
-        var res = await fetch("/api/geocode?q="+encodeURIComponent(q), {headers:{"x-app-key":akey||""}});
+        var res = await fetch("/api/autocomplete?q="+encodeURIComponent(q), {headers:{"x-app-key":akey||""}});
         var text = await res.text();
         var data;
         try { data = JSON.parse(text); } catch(e) { console.warn("Geocode suggest ikke JSON:", text.slice(0,100)); suggestBox.style.display="none"; return; }
@@ -1455,7 +1455,6 @@ function buildDriveView(container) {
   container.appendChild(routeCard);
 
   // Adresseforslag dropdown — udenfor routeCard så overflow:hidden ikke skjuler den
-  suggestBox.style.cssText = "background:var(--white);border:1px solid var(--border);border-radius:8px;z-index:100;overflow:hidden;display:none;box-shadow:0 4px 16px rgba(0,0,0,.1);margin-top:-12px;margin-bottom:8px";
   container.appendChild(suggestBox);
 
   // Retur toggle

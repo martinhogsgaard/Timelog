@@ -2,8 +2,8 @@
 // GET  /api/store  → returnerer { entries, customers, settings }
 // POST /api/store  → body: { entries?, customers?, settings? } → merger og gemmer
 
-const REDIS_URL   = process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const REDIS_URL   = process.env.KV_REST_API_URL;
+const REDIS_TOKEN = process.env.KV_REST_API_TOKEN;
 const APP_KEY     = process.env.APP_KEY;
 const STORE_KEY   = "timelog:data";
 

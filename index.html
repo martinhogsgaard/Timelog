@@ -609,11 +609,20 @@ function showSheetWithSearch(title, items) {
   document.body.appendChild(overlay);
 }
 
-function entryIcon(type) {
+function entryIcon(e) {
+  // Brug type-felt hvis det findes, ellers gæt fra beskrivelse
+  var type = e.type;
+  if (!type) {
+    var desc = (e.description||"").toLowerCase();
+    if (desc.indexOf("kørsel") >= 0 || desc.indexOf("km") >= 0) type = "drive";
+    else if (desc.indexOf("avance") >= 0 || desc.indexOf("faktura") >= 0) type = "scan";
+    else type = "hours";
+  }
   var ico = type==="drive" ? "car" : type==="scan" ? "camera" : "clock";
   var wrap = div("ehrs");
-  wrap.innerHTML = '<div style="width:36px;height:36px;border-radius:9px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">'+ICONS[ico]+'</div>';
-  wrap.querySelector("svg").style.cssText = "width:16px;height:16px;stroke:var(--muted);fill:none";
+  wrap.style.cssText = "display:flex;align-items:center;justify-content:center;min-width:36px";
+  wrap.innerHTML = ICONS[ico];
+  wrap.querySelector("svg").style.cssText = "width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6";
   return wrap;
 }
 
@@ -775,7 +784,7 @@ function buildLogView(container) {
       var entry=div("entry");
       var ebar=div("ebar "+e.status);
       var ebody=div("ebody");
-      var ehrs=entryIcon(e.type);
+      var ehrs=entryIcon(e);
       var einfo=div("einfo");
       einfo.appendChild(div("ecli",e.customerName));
       var d=new Date(e.date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit"});
@@ -828,7 +837,7 @@ function buildHistoryView(container) {
       var entry=div("entry");
       var ebar=div("ebar "+e.status);
       var ebody=div("ebody");
-      var ehrs=entryIcon(e.type);
+      var ehrs=entryIcon(e);
       var einfo=div("einfo");
       einfo.appendChild(div("ecli",e.customerName));
       var descShort=(e.description||"").slice(0,38)+((e.description||"").length>38?"…":"");

@@ -609,6 +609,14 @@ function showSheetWithSearch(title, items) {
   document.body.appendChild(overlay);
 }
 
+function entryIcon(type) {
+  var ico = type==="drive" ? "car" : type==="scan" ? "camera" : "clock";
+  var wrap = div("ehrs");
+  wrap.innerHTML = '<div style="width:36px;height:36px;border-radius:9px;background:var(--bg);border:1px solid var(--border);display:flex;align-items:center;justify-content:center">'+ICONS[ico]+'</div>';
+  wrap.querySelector("svg").style.cssText = "width:16px;height:16px;stroke:var(--muted);fill:none";
+  return wrap;
+}
+
 // State for log view
 var LS = {
   date: todayStr(),
@@ -746,7 +754,7 @@ function buildLogView(container) {
     LS.loading=true; updateSubmitBtn();
     try {
       var dn = await API.logHours(LS.customer.number, LS.date, LS.desc.trim(), hours, rate);
-      S.addEntry({customerNumber:LS.customer.number, customerName:LS.customer.name, date:LS.date, description:LS.desc.trim(), hours:hours, hourlyRate:rate, draftNumber:dn, status:"sent"});
+      S.addEntry({customerNumber:LS.customer.number, customerName:LS.customer.name, date:LS.date, description:LS.desc.trim(), hours:hours, hourlyRate:rate, draftNumber:dn, status:"sent", type:"hours"});
       toast("✓ "+fmt(hours)+" timer lagt på kladde #"+dn);
       LS.hours=""; LS.desc=""; LS.date=todayStr();
     } catch(e) {
@@ -767,7 +775,7 @@ function buildLogView(container) {
       var entry=div("entry");
       var ebar=div("ebar "+e.status);
       var ebody=div("ebody");
-      var ehrs=div("ehrs",fmt(e.hours)+'<small>timer</small>');
+      var ehrs=entryIcon(e.type);
       var einfo=div("einfo");
       einfo.appendChild(div("ecli",e.customerName));
       var d=new Date(e.date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit"});
@@ -820,7 +828,7 @@ function buildHistoryView(container) {
       var entry=div("entry");
       var ebar=div("ebar "+e.status);
       var ebody=div("ebody");
-      var ehrs=div("ehrs",fmt(e.hours)+'<small>timer</small>');
+      var ehrs=entryIcon(e.type);
       var einfo=div("einfo");
       einfo.appendChild(div("ecli",e.customerName));
       var descShort=(e.description||"").slice(0,38)+((e.description||"").length>38?"…":"");
@@ -1306,7 +1314,7 @@ async function sendScanToEconomic(container, totalAmt) {
     S.addEntry({
       customerNumber:SS.customer.number, customerName:SS.customer.name,
       date:r.date||todayStr(), description:desc, hours:1, hourlyRate:totalAmt,
-      draftNumber:dn, status:"sent"
+      draftNumber:dn, status:"sent", type:"scan"
     });
     toast("✓ Faktura sendt til kladde #"+dn);
     SS.imageData=null; SS.imagePreview=null; SS.result=null; SS.avancePct=0; SS.customer=null;
@@ -1656,7 +1664,7 @@ async function sendDriveToEconomic(container) {
     S.addEntry({
       customerNumber:DS.customer.number, customerName:DS.customer.name,
       date:DS.date, description:desc, hours:1, hourlyRate:totalKr,
-      draftNumber:dn, status:"sent"
+      draftNumber:dn, status:"sent", type:"drive"
     });
     toast("✓ "+fmt(totalKm)+"km sendt til kladde #"+dn);
     DS.fromAddress=""; DS.toAddress=""; DS.customer=null; DS.distanceKm=null; DS.note=""; DS.date=todayStr();

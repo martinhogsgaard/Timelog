@@ -373,7 +373,7 @@ var API = {
   },
 
   async getAllDrafts() {
-    var d = await this.req("/invoices/drafts?pagesize=50&sort=draftInvoiceNumber%20asc");
+    var d = await this.req("/invoices/drafts?pagesize=50");
     return d.collection||[];
   },
 

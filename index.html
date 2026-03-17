@@ -2,1744 +2,1813 @@
 <html lang="da">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <!-- PWA -->
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Vox">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-<title>Vox</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Timelog">
+<meta name="theme-color" content="#F5F4F0">
+<meta name="format-detection" content="telephone=no">
+<title>Timelog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-:root { --bg:#f2f2f7; --card:#fff; --border:#e5e5ea; --label:#8e8e93; --text:#1c1c1e; --r:12px; --rs:8px; }
-html,body { height:100%; overflow:hidden; }
-body { font-family:'DM Sans',sans-serif; background:var(--bg); color:var(--text); max-width:390px; margin:0 auto; display:flex; flex-direction:column; height:100dvh; }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+--bg:#F5F4F0;--white:#FFFFFF;--border:#E2E0DA;--border-dark:#C4C1B8;
+--text:#1A1917;--muted:#8C8980;--subtle:#C0BDB5;
+--accent:#2D5BE3;--accent-bg:#EBF0FD;
+--green:#1A7A4A;--green-bg:#E8F5EE;
+--font:'IBM Plex Sans',sans-serif;--mono:'IBM Plex Mono',monospace;--r:14px;
+}
+html,body{height:100%;overscroll-behavior:none;background:var(--bg)}
+body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg)}
+.vwrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.view{padding:0 20px 40px;animation:fi .2s ease}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 
-.header { padding:52px 20px 12px; flex-shrink:0; }
-.date-label { font-size:10px; font-weight:500; letter-spacing:.08em; color:var(--label); text-transform:uppercase; margin-bottom:2px; }
-.date-main { font-size:22px; font-weight:600; letter-spacing:-.3px; }
-.date-main span { font-weight:300; color:var(--label); }
-.divider { height:1px; background:var(--border); margin:0 20px; flex-shrink:0; }
+/* NAV */
+.navbar{display:flex;border-top:1px solid var(--border);background:rgba(245,244,240,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:10px 0 max(16px,env(safe-area-inset-bottom));flex-shrink:0}
+.nbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px 8px;opacity:.32;transition:opacity .15s}
+.nbtn.on{opacity:1}
+.nbtn svg{width:22px;height:22px;stroke:var(--text);fill:none;stroke-width:1.6}
+.nbtn.on svg{stroke:var(--accent)}
+.nlbl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.nbtn.on .nlbl{color:var(--accent)}
 
-.content { flex:1; overflow-y:auto; padding:14px 20px 0; display:flex; flex-direction:column; gap:14px; }
-.section-label { font-size:10px; font-weight:500; letter-spacing:.08em; color:var(--label); text-transform:uppercase; margin-bottom:8px; }
+/* COMMON */
+.date-block{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.date-day{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.date-full{font-size:22px;font-weight:300;letter-spacing:-.02em}
+.date-full strong{font-weight:600}
+.vhdr{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.vtitle{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.slbl{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
 
-.brief-card { background:var(--card); border-radius:var(--r); border:1px solid var(--border); overflow:hidden; }
-.brief-item { display:flex; align-items:center; padding:10px 14px; gap:10px; border-bottom:1px solid var(--border); }
-.brief-item:last-child { border-bottom:none; }
-.brief-item svg { width:16px; height:16px; stroke:var(--text); fill:none; stroke-width:1.6; flex-shrink:0; }
-.brief-title { flex:1; font-size:14px; font-weight:500; }
-.brief-sub { font-size:12px; color:var(--label); }
-.play-btn { display:flex; align-items:center; justify-content:center; gap:7px; background:var(--text); color:#fff; border:none; border-radius:var(--rs); padding:11px 16px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; width:100%; cursor:pointer; margin-top:8px; }
-.play-btn svg { width:14px; height:14px; fill:white; }
+/* STATS */
+.sbar{display:grid;grid-template-columns:1fr 1px 1fr;padding:18px 0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.sdiv{background:var(--border)}
+.stat{padding:0 16px}
+.stat:first-child{padding-left:0}
+.stat:last-child{padding-right:0}
+.stat-l{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.stat-v{font-size:28px;font-weight:300;letter-spacing:-.03em;line-height:1}
+.stat-v strong{font-weight:600}
+.stat-u{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
 
-.projects-card { background:var(--card); border-radius:var(--r); border:1px solid var(--border); overflow:hidden; }
-.project-item { display:flex; align-items:center; padding:10px 14px; gap:10px; border-bottom:1px solid var(--border); cursor:pointer; transition:background .15s; }
-.project-item:last-child { border-bottom:none; }
-.project-item svg { width:14px; height:14px; stroke:var(--label); fill:none; stroke-width:1.6; flex-shrink:0; }
-.project-name { flex:1; font-size:14px; font-weight:500; }
-.project-arrow { font-size:16px; color:var(--label); }
-.new-project { display:flex; align-items:center; padding:10px 14px; gap:10px; cursor:pointer; border-top:1px solid var(--border); }
-.new-project svg { width:14px; height:14px; stroke:var(--label); fill:none; stroke-width:1.6; }
-.new-project span { font-size:14px; color:var(--label); }
+/* CARD */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:4px}
+.crow{display:flex;border-bottom:1px solid var(--border)}
+.crow:last-child{border-bottom:none}
+.crow.two>*{flex:1;border-right:1px solid var(--border)}
+.crow.two>*:last-child{border-right:none}
+.cf{padding:13px 16px;flex:1}
+.fl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.fv{font-size:15px;font-weight:500;color:var(--text)}
+.fv.ph{color:var(--subtle);font-weight:400}
+.fs{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+input,textarea,select{width:100%;background:none;border:none;outline:none;font-family:var(--font);font-size:15px;font-weight:500;color:var(--text);padding:0}
+input::placeholder,textarea::placeholder{color:var(--subtle);font-weight:400}
+textarea{resize:none}
 
-.chat-area { display:flex; flex-direction:column; gap:8px; }
-.bubble { padding:10px 14px; border-radius:18px; font-size:14px; line-height:1.5; max-width:85%; }
-.bubble.user { background:var(--text); color:#fff; align-self:flex-end; border-bottom-right-radius:4px; }
-.bubble.assistant { background:var(--card); color:var(--text); align-self:flex-start; border:1px solid var(--border); border-bottom-left-radius:4px; }
-.back-btn { font-size:13px; color:var(--label); cursor:pointer; padding:4px 0; margin-bottom:8px; }
+/* HOUR PILLS */
+.hsec{padding:13px 16px;border-bottom:1px solid var(--border)}
+.hpills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.hp{padding:7px 11px;border-radius:7px;border:1px solid var(--border);font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--bg);cursor:pointer;transition:all .1s;user-select:none}
+.hp.on{background:var(--accent);border-color:var(--accent);color:white}
 
-/* TRANSCRIPT */
-.transcript-box { background:var(--card); border:1px solid var(--border); border-radius:var(--rs); padding:8px 14px; font-size:13px; color:var(--label); font-style:italic; margin:8px 20px; text-align:center; min-height:36px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+/* BUTTONS */
+.btnp{width:100%;background:var(--text);color:var(--bg);border:none;border-radius:10px;padding:15px 20px;font-family:var(--font);font-size:15px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;transition:opacity .15s}
+.btnp:disabled{opacity:.3;cursor:not-allowed}
+.btnp svg{width:16px;height:16px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.75}
+.btns{width:100%;background:none;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:13px 20px;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px}
+.btns svg{width:15px;height:15px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.75}
 
-/* HOME CHAT */
-.home-chat-wrap { flex:1; overflow-y:auto; padding:0 20px 8px; display:flex; flex-direction:column; gap:8px; }
-.home-chat-empty { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; color:var(--label); font-size:13px; padding-bottom:20px; }
-.home-chat-empty svg { width:32px; height:32px; stroke:var(--border); fill:none; stroke-width:1.5; }
+/* ENTRIES */
+.elist{display:flex;flex-direction:column;gap:8px}
+.entry{background:var(--white);border:1px solid var(--border);border-radius:12px;display:flex;overflow:hidden}
+.ebar{width:3px;flex-shrink:0;background:var(--border-dark)}
+.ebar.sent{background:var(--green)}
+.ebar.draft{background:var(--accent)}
+.ebody{flex:1;padding:12px 14px;display:flex;align-items:center;gap:12px}
+.ehrs{font-family:var(--mono);font-size:19px;font-weight:400;min-width:46px;line-height:1.1}
+.ehrs small{display:block;font-size:9px;color:var(--muted);letter-spacing:.1em;margin-top:2px}
+.einfo{flex:1;min-width:0}
+.ecli{font-size:13px;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.emeta{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eright{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:4px}
+.badge.draft{background:var(--accent-bg);color:var(--accent)}
+.badge.sent{background:var(--green-bg);color:var(--green)}
+.eamt{font-family:var(--mono);font-size:11px;color:var(--muted)}
 
-/* CONFIRM CARD */
-.confirm-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:14px 16px; margin:0 20px 8px; flex-shrink:0; }
-.confirm-card-label { font-size:10px; font-weight:500; letter-spacing:.08em; color:var(--label); text-transform:uppercase; margin-bottom:6px; }
-.confirm-card-value { font-size:15px; font-weight:500; margin-bottom:12px; word-break:break-all; }
-.confirm-card-btns { display:flex; gap:8px; }
-.confirm-yes { flex:1; background:var(--text); color:#fff; border:none; border-radius:var(--rs); padding:11px; font-family:'DM Sans',sans-serif; font-size:14px; font-weight:500; cursor:pointer; }
-.confirm-no { flex:1; background:none; color:var(--label); border:1px solid var(--border); border-radius:var(--rs); padding:11px; font-family:'DM Sans',sans-serif; font-size:14px; cursor:pointer; }
+/* SHEET */
+.overlay{position:fixed;inset:0;background:rgba(26,25,23,.45);backdrop-filter:blur(4px);z-index:50;display:flex;align-items:flex-end}
+.sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-height:80dvh;overflow-y:auto;padding:0 20px max(24px,env(safe-area-inset-bottom));animation:su .28s cubic-bezier(.22,1,.36,1)}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.shandle{width:36px;height:4px;background:var(--border-dark);border-radius:2px;margin:12px auto 20px}
+.stitle{font-size:17px;font-weight:600;margin-bottom:16px}
+.sitem{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.sitem:last-child{border-bottom:none}
+.siname{font-size:15px;font-weight:500}
+.sisub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.sicheck{color:var(--accent);font-size:18px;font-weight:600}
 
-/* MIC */
-.mic-section { display:flex; flex-direction:column; align-items:center; padding:6px 0 8px; flex-shrink:0; }
-.mic-status { font-size:10px; font-weight:500; letter-spacing:.08em; color:var(--label); text-transform:uppercase; margin-bottom:10px; }
-.mic-outer { width:76px; height:76px; border-radius:50%; background:var(--card); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .25s; box-shadow:0 2px 8px rgba(0,0,0,.06); }
-.mic-outer svg { width:30px; height:30px; stroke:var(--text); fill:none; stroke-width:1.5; transition:stroke .25s; }
-.mic-outer.idle { animation:idlePulse 3s infinite ease-in-out; }
-@keyframes idlePulse { 0%,100%{box-shadow:0 2px 8px rgba(0,0,0,.06)} 50%{box-shadow:0 2px 18px rgba(0,0,0,.13)} }
-.mic-outer.listening { background:var(--text); border-color:var(--text); animation:listenPulse 1.2s infinite; }
-.mic-outer.listening svg { stroke:#fff; }
-@keyframes listenPulse { 0%,100%{box-shadow:0 0 0 10px rgba(28,28,30,.09),0 0 0 20px rgba(28,28,30,.04)} 50%{box-shadow:0 0 0 16px rgba(28,28,30,.06),0 0 0 30px rgba(28,28,30,.02)} }
-.mic-outer.thinking svg { stroke:var(--label); }
-.mic-outer.speaking { animation:speakPulse .9s infinite ease-in-out; }
-@keyframes speakPulse { 0%,100%{box-shadow:0 0 0 6px rgba(28,28,30,.05)} 50%{box-shadow:0 0 0 14px rgba(28,28,30,.03)} }
-.mic-hint { font-size:11px; color:var(--label); margin-top:8px; text-align:center; min-height:16px; }
+/* TOAST */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:10px;font-size:14px;font-weight:500;z-index:200;white-space:nowrap;pointer-events:none;animation:ti .25s ease}
+@keyframes ti{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 
-/* BOTTOM NAV */
-.bottom-nav { background:rgba(242,242,247,.95); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-top:1px solid var(--border); display:flex; padding:8px 0 24px; flex-shrink:0; }
-.nav-item { flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:4px 0; cursor:pointer; }
-.nav-item svg { width:22px; height:22px; stroke:var(--label); fill:none; stroke-width:1.5; }
-.nav-item.active svg { stroke:var(--text); }
-.nav-label { font-size:9px; font-weight:500; letter-spacing:.05em; text-transform:uppercase; color:var(--label); }
-.nav-item.active .nav-label { color:var(--text); }
+/* EMPTY */
+.empty{text-align:center;padding:52px 24px;color:var(--muted)}
+.eico{font-size:32px;margin-bottom:12px;opacity:.35}
+.etxt{font-size:13px;font-family:var(--mono);line-height:1.8}
 
-/* CALENDAR VIEW */
-.cal-day-group { margin-bottom:14px; }
-.cal-day-header { font-size:11px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; color:var(--label); margin-bottom:6px; padding:0 2px; }
-.cal-day-header.today { color:var(--text); }
-.cal-event { background:var(--card); border-radius:var(--rs); border:1px solid var(--border); padding:11px 14px; margin-bottom:6px; display:flex; gap:12px; align-items:center; cursor:pointer; transition:background .15s; }
-.cal-event:active { background:var(--bg); }
-.cal-event-time { font-size:12px; font-weight:600; color:var(--label); min-width:40px; text-align:right; line-height:1.3; }
-.cal-event-time.allday { font-size:10px; text-transform:uppercase; letter-spacing:.04em; }
-.cal-event-dot { width:8px; height:8px; border-radius:50%; background:var(--text); flex-shrink:0; }
-.cal-event-dot.today { background:#007aff; }
-.cal-event-info { flex:1; min-width:0; }
-.cal-event-title { font-size:14px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.cal-event-duration { font-size:12px; color:var(--label); margin-top:1px; }
-.cal-empty { padding:20px 14px; font-size:13px; color:var(--label); text-align:center; }
-.cal-add-btn { display:flex; align-items:center; justify-content:center; gap:7px; background:var(--text); color:#fff; border:none; border-radius:var(--rs); padding:11px 16px; font-family:'DM Sans',sans-serif; font-size:13px; font-weight:500; width:100%; cursor:pointer; margin-bottom:14px; }
-.cal-add-btn svg { width:14px; height:14px; stroke:#fff; fill:none; stroke-width:2; }
-.cal-loading { padding:30px; text-align:center; font-size:13px; color:var(--label); }
+/* INVOICE */
+.icard{background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.ihdr{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:pointer}
+.icli{font-size:15px;font-weight:600}
+.inum{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.iright{display:flex;align-items:center;gap:10px}
+.itot{font-size:15px;font-weight:600;text-align:right}
+.isub{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.ichev{transition:transform .2s;color:var(--muted);display:flex}
+.ichev.open{transform:rotate(90deg)}
+.iline{padding:10px 16px;display:flex;align-items:center;border-bottom:1px solid var(--border);font-size:13px;gap:8px}
+.iline:last-child{border-bottom:none}
+.iln{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:20px}
+.ild{flex:1;color:var(--text);font-size:12px}
+.ilh{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.ila{font-family:var(--mono);font-size:12px;font-weight:500;white-space:nowrap}
+.iftr{padding:12px 16px;background:var(--bg);display:flex;justify-content:space-between;align-items:center}
+.itlbl{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.itval{font-size:17px;font-weight:600}
 
-.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:flex-end; justify-content:center; }
-.modal-overlay.visible { display:flex; }
-.modal { background:var(--card); border-radius:20px 20px 0 0; padding:24px 20px 40px; width:100%; max-width:390px; }
-.modal-title { font-size:17px; font-weight:600; margin-bottom:16px; }
-.modal-input { width:100%; border:1px solid var(--border); border-radius:var(--rs); padding:12px 14px; font-family:'DM Sans',sans-serif; font-size:15px; outline:none; background:var(--bg); }
-.modal-btn { width:100%; background:var(--text); color:#fff; border:none; border-radius:var(--rs); padding:13px; font-family:'DM Sans',sans-serif; font-size:15px; font-weight:500; margin-top:12px; cursor:pointer; }
-.modal-cancel { width:100%; background:none; border:none; color:var(--label); font-family:'DM Sans',sans-serif; font-size:15px; margin-top:8px; cursor:pointer; padding:8px; }
+/* SETTINGS */
+.srow{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--white)}
+.srow:last-child{border-bottom:none}
+.srlbl{font-size:14px;font-weight:500}
+.srsub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.srval{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.srinp{background:none;border:none;outline:none;font-family:var(--mono);font-size:13px;text-align:right;color:var(--text)}
+.sgrp{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:24px}
+
+/* SPINNER */
+.spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+.spin-dark{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;margin:0 auto 14px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* SCAN VIEW */
+.scan-drop{border:2px dashed var(--border);border-radius:var(--r);padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--white);margin-bottom:16px}
+.scan-drop:hover{border-color:var(--accent);background:var(--accent-bg)}
+.scan-drop svg{width:36px;height:36px;stroke:var(--muted);fill:none;stroke-width:1.4;margin-bottom:10px}
+.scan-drop.has-img{padding:0;overflow:hidden;border-style:solid;border-color:var(--accent)}
+.scan-drop img{width:100%;max-height:260px;object-fit:contain;display:block}
+.scan-preview{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.scan-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+.scan-row:last-child{border-bottom:none}
+.scan-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.scan-val{font-size:15px;font-weight:500}
+.scan-edit{background:none;border:none;outline:none;font-family:var(--font);font-size:15px;font-weight:500;color:var(--text);text-align:right;width:100%}
+.avance-row{background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.avance-left{font-size:13px;color:var(--accent);font-weight:500}
+.avance-total{font-size:18px;font-weight:600;color:var(--accent)}
+.avance-sub{font-family:var(--mono);font-size:10px;color:var(--accent);opacity:.7;margin-top:2px}
+.pct-pills{display:flex;gap:6px;margin-top:8px}
+.pct-pill{padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);cursor:pointer}
+.pct-pill.on{background:var(--accent);border-color:var(--accent);color:white}
+.ai-thinking{display:flex;flex-direction:column;align-items:center;padding:40px 20px;gap:12px}
+.ai-thinking .spin-dark{width:32px;height:32px}
+.ai-lbl{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em}
+
+/* DRIVE VIEW */
+.drive-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:visible;margin-bottom:16px}
+.drive-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border);gap:12px}
+.drive-row:last-child{border-bottom:none}
+.drive-icon{width:36px;height:36px;background:var(--accent-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.drive-icon svg{width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:1.6}
+.drive-content{flex:1;min-width:0}
+.drive-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.drive-val{font-size:14px;font-weight:500;color:var(--text)}
+.drive-val.ph{color:var(--subtle);font-weight:400}
+.drive-inp{background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:500;color:var(--text);width:100%;padding:0}
+.drive-inp::placeholder{color:var(--subtle);font-weight:400}
+.locate-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--accent);cursor:pointer;white-space:nowrap;flex-shrink:0;letter-spacing:.05em}
+.route-box{background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);padding:16px;margin-bottom:16px}
+.route-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.route-km{font-size:28px;font-weight:300;letter-spacing:-.02em;color:var(--accent)}
+.route-km strong{font-weight:600}
+.route-kr{font-size:18px;font-weight:600;color:var(--accent)}
+.route-detail{font-family:var(--mono);font-size:10px;color:var(--accent);opacity:.7}
+.retur-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px;cursor:pointer}
+.retur-lbl{font-size:14px;font-weight:500}
+.toggle{width:44px;height:26px;background:var(--border);border-radius:13px;position:relative;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--accent)}
+.toggle-dot{width:20px;height:20px;background:white;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle.on .toggle-dot{transform:translateX(18px)}
+.sats-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.sats-pill{padding:6px 12px;border-radius:7px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);cursor:pointer}
+.sats-pill.on{background:var(--accent);border-color:var(--accent);color:white}
 </style>
 </head>
 <body>
-
-<div class="header">
-  <div class="date-label">I DAG</div>
-  <div class="date-main" id="dateDisplay">Indlæser...</div>
+<div id="app">
+<div class="vwrap" id="vwrap"></div>
+<nav class="navbar" id="navbar"></nav>
 </div>
-<div class="divider"></div>
-
-<!-- SPLASH -->
-<div id="splashScreen" style="position:fixed;inset:0;background:#1c1c1e;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:999;gap:24px;">
-  <div style="font-size:42px;font-weight:700;color:#fff;letter-spacing:-1px;">Vox</div>
-  <div style="font-size:14px;color:rgba(255,255,255,.5);letter-spacing:.05em;text-transform:uppercase;">Din personlige assistent</div>
-  <div style="margin-top:16px;background:#fff;color:#1c1c1e;border:none;border-radius:50px;padding:16px 40px;font-family:'DM Sans',sans-serif;font-size:16px;font-weight:600;cursor:pointer;letter-spacing:-.2px;" onclick="startApp()">Tryk for at starte</div>
-</div>
-
-<!-- HOME -->
-<div class="content" id="homeView" style="display:flex;flex-direction:column;padding:0;gap:0;">
-  <!-- Home chat area -->
-  <div class="home-chat-wrap" id="homeChatWrap">
-    <div class="home-chat-empty" id="homeChatEmpty">
-      <svg viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      Tryk på mikrofon og tal til Vox
-    </div>
-    <div class="chat-area" id="homeChatArea"></div>
-  </div>
-  <!-- Confirm card (hidden by default) -->
-  <div class="confirm-card" id="confirmCard" style="display:none;">
-    <div class="confirm-card-label" id="confirmLabel">Send mail til</div>
-    <div class="confirm-card-value" id="confirmValue"></div>
-    <div class="confirm-card-btns">
-      <button class="confirm-yes" onclick="confirmCardYes()">✓ Ja, send</button>
-      <button class="confirm-no" onclick="confirmCardNo()">✕ Nej</button>
-    </div>
-  </div>
-</div>
-
-<!-- PROJECT VIEW -->
-<div class="content" id="projectView" style="display:none;">
-  <div>
-    <div class="back-btn" onclick="goHome()">‹ Hjem</div>
-    <div class="section-label" id="projectViewLabel">Samtale</div>
-    <div class="chat-area" id="chatArea"></div>
-  </div>
-</div>
-
-<!-- CALENDAR VIEW -->
-<div class="content" id="calendarView" style="display:none;">
-  <div>
-    <button class="cal-add-btn" onclick="startVoiceCreate()">
-      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      Opret ny aftale med stemmen
-    </button>
-    <div id="calendarList"><div class="cal-loading">Henter kalender...</div></div>
-  </div>
-</div>
-
-<!-- PROJEKTER VIEW -->
-<div class="content" id="projekterView" style="display:none;">
-  <div>
-    <div class="projects-card" id="projekterList"><div style="padding:14px;font-size:13px;color:var(--label)">Henter...</div></div>
-    <div class="new-project" onclick="openModal()" style="background:var(--card);border-radius:var(--rs);border:1px solid var(--border);margin-top:8px;">
-      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      <span>Nyt projekt</span>
-    </div>
-  </div>
-</div>
-
-<!-- TRANSCRIPT -->
-<div class="transcript-box" id="transcriptBox">Tryk på mikrofon for at tale</div>
-
-<!-- MIC -->
-<div class="mic-section">
-  <div class="mic-status" id="micStatus">Lytter</div>
-  <div class="mic-outer idle" id="micBtn" onclick="handleMicTap()">
-    <svg viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/></svg>
-  </div>
-  <div class="mic-hint" id="micHint">Altid lyttende</div>
-</div>
-
-<!-- NAV -->
-<div class="bottom-nav">
-  <div class="nav-item" id="nav-hjem" onclick="navTo('hjem')">
-    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
-    <span class="nav-label">Hjem</span>
-  </div>
-  <div class="nav-item" id="nav-projekter" onclick="navTo('projekter')">
-    <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-    <span class="nav-label">Projekter</span>
-  </div>
-  <div class="nav-item" id="nav-kalender" onclick="navTo('kalender')">
-    <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-    <span class="nav-label">Kalender</span>
-  </div>
-  <div class="nav-item" id="nav-konto" onclick="navTo('konto')">
-    <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-    <span class="nav-label">Konto</span>
-  </div>
-</div>
-
-<div class="modal-overlay" id="modal">
-  <div class="modal">
-    <div class="modal-title">Nyt projekt</div>
-    <input class="modal-input" id="newProjectName" placeholder="Projektnavn..."/>
-    <button class="modal-btn" onclick="createProject()">Opret</button>
-    <button class="modal-cancel" onclick="closeModal()">Annuller</button>
-  </div>
-</div>
+<div id="toaster"></div>
 
 <script>
-const SUPABASE_URL = 'https://kahpdsismxckxljddxya.supabase.co';
-const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImthaHBkc2lzbXhja3hsamRkeHlhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI4MzE1OTMsImV4cCI6MjA4ODQwNzU5M30.KzFNs2rhbatc4u8Ec1ZcfDVKykZnkLfV2K_cvSakSxc';
-const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// ─── CONFIG ──────────────────────────────────────────────────────
+window.EC = {
+useProxy: true,
+// APP_KEY beskytter proxy-endpointet mod uautoriseret brug.
+// Generér en hemmelig streng på: https://generate-secret.vercel.app/32
+// Sæt SAMME streng i Vercel → Settings → Environment Variables som APP_KEY
+appKey: null  // sættes automatisk via /api/config
+};
 
-let activeProject = null;
-let conversationHistory = [];
-let homeHistory = []; // Conversation history when on home screen
-
-function saveToHistory(role, content) {
-  if (activeProject) {
-    if (role === 'assistant') conversationHistory.push({ role, content });
-  } else {
-    homeHistory.push({ role, content });
-    if (homeHistory.length > 20) homeHistory = homeHistory.slice(-20);
-  }
+// ─── STORAGE ─────────────────────────────────────────────────────
+var S = {
+g: function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+s: function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+customers: function(){return this.g("tl_c",[])},
+setCustomers: function(v){this.s("tl_c",v); SYNC.push({customers:v});},
+entries: function(){return this.g("tl_e",[])},
+setEntries: function(v){this.s("tl_e",v); SYNC.push({entries:v});},
+settings: function(){return this.g("tl_s",{defaultRate:1000,userName:"",userInitials:""})},
+setSettings: function(v){
+var merged=Object.assign(this.g("tl_s",{}),v);
+this.s("tl_s",merged);
+SYNC.push({settings:merged});
+},
+addEntry: function(e){
+var entry=Object.assign({id:Date.now().toString(),createdAt:new Date().toISOString(),status:"sent"},e);
+this.setEntries([entry].concat(this.entries()));
+return entry;
+},
+mergeCustomers: function(ec){
+var prev=this.customers(),map={};
+prev.forEach(function(c){map[c.number]=c;});
+var merged=ec.map(function(c){return Object.assign({},c,{rate:map[c.number]?map[c.number].rate:null});});
+this.setCustomers(merged);
+return merged;
+},
+setCustomerRate: function(num,rate){
+this.setCustomers(this.customers().map(function(c){return c.number===num?Object.assign({},c,{rate:rate}):c;}));
 }
-let projects = [];
-let isListening = false;
-let listenTimeout = null;
-let isSpeaking = false;
-let driveContext = ''; // File content from Google Drive project folder
-let driveFiles = [];   // List of files in current project folder
-let isThinking = false;
-let recognition = null;
-let hasSeeded = false;
-let selectedVoice = null;
-let calendarConnected = false;
+};
 
-// ── VOICE ──
-const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+// ─── CLOUD SYNC ──────────────────────────────────────────────────
+var SYNC = {
+  _timer: null,
+  _syncing: false,
+  _pending: {},
 
-function loadVoices() {
-  const voices = speechSynthesis.getVoices();
-  if (!voices.length) return;
-  // iOS/Safari: prefer built-in English voices
-  const priority = isIOS
-    ? ['Daniel', 'Arthur', 'Oliver', 'Karen', 'Samantha', 'Alex']
-    : ['Google UK English Male', 'Google US English 1 (Natural)', 'Google UK English Female', 'Daniel', 'Alex', 'Samantha'];
-  for (const name of priority) {
-    const v = voices.find(v => v.name === name);
-    if (v) { selectedVoice = v; console.log('Voice selected:', v.name); return; }
-  }
-  // Fallback: first English voice
-  selectedVoice = voices.find(v => v.lang.startsWith('en')) || voices[0];
-  console.log('Voice fallback:', selectedVoice?.name);
-}
-speechSynthesis.onvoiceschanged = loadVoices;
-setTimeout(loadVoices, 100);
-setTimeout(loadVoices, 500);
-setTimeout(loadVoices, 1500);
-
-// HTML escape to prevent XSS from calendar/project data
-function esc(str) {
-  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-}
-
-// Central speech queue
-let _speakQueue = [];
-let _speakBusy = false;
-let _stopRequested = false;
-
-function stopSpeaking() {
-  _stopRequested = true;
-  speechSynthesis.cancel();
-  _speakQueue = [];
-  _speakBusy = false;
-  isSpeaking = false;
-  setMicState('idle');
-  setMicHint('Tryk for at tale');
-}
-
-function _processQueue() {
-  if (_stopRequested || _speakBusy || _speakQueue.length === 0) return;
-  const { text, onDone } = _speakQueue.shift();
-  _speakBusy = true;
-  isSpeaking = true;
-  setMicState('speaking');
-
-  const safe = text.replace(/ dot /gi, ' DOT ');
-  const sentences = safe.match(/[^.!?]+[.!?]*/g) || [safe];
-  let idx = 0;
-
-  function next() {
-    // Check stop flag before every sentence
-    if (_stopRequested) {
-      _speakBusy = false;
-      return;
-    }
-    if (idx >= sentences.length) {
-      _speakBusy = false;
-      isSpeaking = _speakQueue.length > 0;
-      if (onDone && !_stopRequested) onDone();
-      else if (_speakQueue.length === 0) { setMicState('idle'); setMicHint('Tryk for at tale'); }
-      _processQueue();
-      return;
-    }
-    const chunk = sentences[idx].trim().replace(/ DOT /g, ' dot ');
-    if (!chunk) { idx++; next(); return; }
-    const u = new SpeechSynthesisUtterance(chunk);
-    u.voice = selectedVoice || null;
-    u.lang = 'en-GB';
-    u.rate = isIOS ? 1.0 : 1.1;
-    u.pitch = 1.0;
-    u.onend = () => { idx++; next(); };
-    u.onerror = (e) => {
-      // 'interrupted' means we cancelled intentionally — stop completely
-      if (e.error === 'interrupted' || e.error === 'canceled') {
-        _speakBusy = false;
-        isSpeaking = false;
-        return;
-      }
-      console.warn('Speech error:', e.error, chunk);
-      idx++; next();
-    };
-    speechSynthesis.speak(u);
-  }
-  next();
-}
-
-function speak(text, onDone) {
-  if (!selectedVoice) loadVoices();
-  _stopRequested = false;
-  speechSynthesis.cancel();
-  _speakQueue = [];
-  _speakBusy = false;
-  _speakQueue.push({ text, onDone });
-  setTimeout(_processQueue, 50);
-}
-
-function speakQueued(text, onDone) {
-  if (!selectedVoice) loadVoices();
-  _speakQueue.push({ text, onDone });
-  _processQueue();
-}
-
-
-// ── DATE ──
-function setDate() {
-  const d = new Date();
-  const days = ['Søndag','Mandag','Tirsdag','Onsdag','Torsdag','Fredag','Lørdag'];
-  const months = ['januar','februar','marts','april','maj','juni','juli','august','september','oktober','november','december'];
-  document.getElementById('dateDisplay').innerHTML = `${days[d.getDay()]}<span>, ${d.getDate()}. ${months[d.getMonth()]} ${d.getFullYear()}</span>`;
-}
-
-// ── WEATHER ──
-async function fetchWeather() {
-  try {
-    const r = await fetch('https://api.open-meteo.com/v1/forecast?latitude=55.68&longitude=12.57&current=temperature_2m,weathercode&timezone=Europe/Copenhagen');
-    const d = await r.json();
-    const temp = Math.round(d.current.temperature_2m);
-    const descs = {0:'klart vejr',1:'let skyet',2:'skyet',3:'overskyet',45:'tåge',61:'let regn',63:'regn',71:'let sne',80:'byger'};
-    const desc = descs[d.current.weathercode] || 'skiftende vejr';
-    // weatherSub removed from home view
-    return `${temp} grader, ${desc}`;
-  } catch { return 'vejret ikke tilgængeligt'; }
-}
-
-// ── PROJECTS ──
-async function loadProjects() {
-  const { data, error } = await sb.from('projects').select('*');
-  if (error) { console.log('Projects error:', error); return; }
-  
-  // Only seed if table is genuinely empty — never seed if there are already rows
-  if (!data || data.length === 0) {
-    console.log('No projects found — seeding defaults once');
-    for (const name of ['WoodUpp','ByAulum','Timelog','Nye idéer']) {
-      await sb.from('projects').insert({ name });
-    }
-    const { data: s } = await sb.from('projects').select('*');
-    projects = s || [];
-  } else {
-    projects = data;
-  }
-  
-  renderProjects(projects);
-  // projectsSub removed from home view
-}
-
-function renderProjects(list) {
-  const el = document.getElementById('projekterList') || document.getElementById('projectsList');
-  el.innerHTML = '';
-  list.forEach(p => {
-    const d = document.createElement('div');
-    d.className = 'project-item';
-    d.innerHTML = `<svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg><div class="project-name">${esc(p.name)}</div><div class="project-arrow">›</div>`;
-    d.onclick = () => openProject(p);
-    el.appendChild(d);
-  });
-  const n = document.createElement('div');
-  n.className = 'new-project';
-  n.innerHTML = `<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>Nyt projekt</span>`;
-  n.onclick = () => document.getElementById('modal').classList.add('visible');
-  el.appendChild(n);
-}
-
-async function openProject(p) {
-  activeProject = p;
-  showView('projectView');
-  document.getElementById('projectViewLabel').textContent = p.name.toUpperCase();
-  
-  // Load message history for this project
-  const { data, error } = await sb.from('messages').select('*').eq('project_id', p.id);
-  if (error) console.log('Messages error:', error);
-  
-  // Sort by created_at if available, otherwise use insertion order
-  const sorted = (data || []).sort((a, b) => {
-    if (a.created_at && b.created_at) return new Date(a.created_at) - new Date(b.created_at);
-    return 0;
-  });
-  
-  conversationHistory = sorted.map(m => ({ role: m.role, content: m.content }));
-  console.log(`Loaded ${conversationHistory.length} messages for ${p.name}`);
-  
-  const chat = document.getElementById('chatArea');
-  chat.innerHTML = '';
-  
-  if (conversationHistory.length === 0) {
-    addBubble('assistant', `You are now in ${p.name}. What would you like to talk about?`);
-  } else {
-    // Show last 20 messages in UI
-    const recent = conversationHistory.slice(-20);
-    recent.forEach(m => addBubble(m.role, m.content, false));
-    chat.scrollTop = chat.scrollHeight;
-  }
-  setMicHint(`Aktiv: ${p.name}`);
-}
-
-// ── CENTRAL NAVIGATION ──
-function showView(viewId) {
-  const views = ['homeView', 'projectView', 'calendarView', 'projekterView'];
-  views.forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = id === viewId ? 'flex' : 'none';
-  });
-}
-
-function renderProjekterView() {
-  const list = document.getElementById('projekterList');
-  if (!projects || projects.length === 0) {
-    list.innerHTML = '<div class="cal-empty">Ingen projekter endnu</div>';
-    return;
-  }
-  list.innerHTML = projects.map(p => `
-    <div class="project-item" onclick="openProjectFromNav('${p.id}')">
-      <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      <span class="project-name">${p.name}</span>
-      <span class="project-arrow">›</span>
-    </div>
-  `).join('');
-}
-
-function openProjectFromNav(id) {
-  const p = projects.find(p => p.id === id);
-  if (p) openProject(p);
-}
-
-async function renderCalendarView() {
-  const list = document.getElementById('calendarList');
-  list.innerHTML = '<div class="cal-loading">Henter kalender...</div>';
-  try {
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'upcoming_14' })
-    });
-    const data = await res.json();
-    const events = data.items || [];
-
-    if (events.length === 0) {
-      list.innerHTML = '<div class="cal-empty">Ingen kommende aftaler</div>';
-      return;
-    }
-
-    // Group by date
-    const groups = {};
-    events.forEach(e => {
-      const dateKey = (e.start.dateTime || e.start.date).split('T')[0];
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push(e);
-    });
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    const tomorrowStr = (() => { const d = new Date(); d.setDate(d.getDate()+1); return d.toISOString().split('T')[0]; })();
-
-    let html = '';
-    Object.keys(groups).sort().forEach(dateKey => {
-      const isToday = dateKey === todayStr;
-      const isTomorrow = dateKey === tomorrowStr;
-      const d = new Date(dateKey + 'T12:00:00');
-      let label;
-      if (isToday) label = 'I dag';
-      else if (isTomorrow) label = 'I morgen';
-      else label = d.toLocaleDateString('da', { weekday:'long', day:'numeric', month:'long' });
-      label = label.charAt(0).toUpperCase() + label.slice(1);
-
-      html += `<div class="cal-day-group">
-        <div class="cal-day-header${isToday ? ' today' : ''}">${label}</div>`;
-
-      groups[dateKey].forEach(e => {
-        const isAllDay = !!e.start.date;
-        let timeStr = '', durationStr = '';
-        let dotClass = isToday ? 'today' : '';
-        if (!isAllDay) {
-          const start = new Date(e.start.dateTime);
-          const end = new Date(e.end.dateTime);
-          timeStr = start.toLocaleTimeString('da', { hour:'2-digit', minute:'2-digit' });
-          const mins = Math.round((end - start) / 60000);
-          durationStr = mins >= 60 ? `${Math.floor(mins/60)}t${mins%60 ? ' '+mins%60+'m' : ''}` : `${mins}m`;
-        } else {
-          timeStr = 'Hele<br>dagen';
-        }
-        html += `<div class="cal-event" onclick="speakEvent('${esc(e.summary)}', '${timeStr.replace('<br>',' ')}')">
-          <div class="cal-event-time${isAllDay ? ' allday' : ''}">${timeStr}</div>
-          <div class="cal-event-dot ${dotClass}"></div>
-          <div class="cal-event-info">
-            <div class="cal-event-title">${esc(e.summary)}</div>
-            ${durationStr ? `<div class="cal-event-duration">${durationStr}</div>` : ''}
-          </div>
-        </div>`;
+  pull: async function() {
+    try {
+      var key = await API.getAppKey();
+      var res = await fetch("/api/store", {
+        headers: { "x-app-key": key||"" }
       });
-      html += '</div>';
-    });
-
-    list.innerHTML = html;
-  } catch(err) {
-    list.innerHTML = '<div class="cal-empty">Kunne ikke hente kalender</div>';
-  }
-}
-
-function speakEvent(title, time) {
-  speak(time && time !== 'Hele dagen' ? `${title} kl. ${time}` : title);
-}
-
-function startVoiceCreate() {
-  speak("Tell me what to create. For example: create a meeting called WoodUpp Monday at ten.");
-  // Don't auto-start mic — user must tap manually
-}
-
-function setActiveNav(tab) {
-  ['hjem','projekter','kalender','konto'].forEach(t => {
-    const el = document.getElementById('nav-' + t);
-    if (el) el.classList.toggle('active', t === tab);
-  });
-}
-
-function navTo(tab) {
-  const home = document.getElementById('homeScreen');
-  const proj = document.getElementById('projectScreen');
-  // Hide all screens first
-  if (home) home.style.display = 'none';
-  if (proj) proj.style.display = 'none';
-
-  setActiveNav(tab);
-
-  activeProject = null;
-  conversationHistory = [];
-
-  if (tab === 'hjem') {
-    homeHistory = [];
-    hideConfirmCard();
-    showView('homeView');
-  } else if (tab === 'projekter') {
-    showView('projekterView');
-    renderProjekterView();
-  } else if (tab === 'kalender') {
-    showView('calendarView');
-    renderCalendarView();
-  } else if (tab === 'konto') {
-    showView('homeView'); // placeholder
-  }
-}
-
-function goHome() {
-  activeProject = null;
-  conversationHistory = [];
-  homeHistory = [];
-  setActiveNav('hjem');
-  showView('homeView');
-  document.getElementById('projectView').style.display = 'none';
-  document.getElementById('homeView').style.display = 'flex';
-  setTranscript('Tryk på mikrofon for at tale');
-  setMicHint('Altid lyttende');
-  hideConfirmCard();
-}
-
-async function createProject() {
-  const name = document.getElementById('newProjectName').value.trim();
-  if (!name) return;
-  console.log('Creating project:', name);
-  const { data, error } = await sb.from('projects').insert({ name }).select();
-  console.log('Create result:', data, error);
-  closeModal();
-  document.getElementById('newProjectName').value = '';
-  await loadProjects();
-  if (!error && data && data.length > 0) {
-    openProject(data[0]);
-    speak(`Project ${name} created. You are now in ${name}.`);
-    ensureProjectFolder(name); // Create matching Drive folder
-  } else if (error) {
-    console.error('Project create error:', error);
-    alert('Fejl ved oprettelse: ' + error.message);
-  }
-}
-
-function closeModal() { document.getElementById('modal').classList.remove('visible'); }
-
-// ── CHAT ──
-function addBubble(role, text, scroll = true) {
-  // Project chat OR home chat
-  const chatId = activeProject ? 'chatArea' : 'homeChatArea';
-  const chat = document.getElementById(chatId);
-  if (!chat) return;
-  // Hide empty state
-  const empty = document.getElementById('homeChatEmpty');
-  if (empty) empty.style.display = 'none';
-  const d = document.createElement('div');
-  d.className = `bubble ${role}`;
-  d.textContent = text;
-  chat.appendChild(d);
-  // Scroll home wrap or project content
-  const wrap = activeProject
-    ? document.getElementById('projectView')
-    : document.getElementById('homeChatWrap');
-  if (scroll && wrap) wrap.scrollTop = wrap.scrollHeight;
-}
-
-// Show live transcript as a typing bubble in home chat
-let _liveBubble = null;
-function setLiveTranscript(text) {
-  if (activeProject) {
-    // In project: use existing transcript box
-    setTranscript(text);
-    return;
-  }
-  const wrap = document.getElementById('homeChatWrap');
-  const empty = document.getElementById('homeChatEmpty');
-  if (!text) {
-    if (_liveBubble) { _liveBubble.remove(); _liveBubble = null; }
-    return;
-  }
-  if (empty) empty.style.display = 'none';
-  if (!_liveBubble) {
-    _liveBubble = document.createElement('div');
-    _liveBubble.className = 'bubble user';
-    _liveBubble.style.opacity = '0.5';
-    wrap.appendChild(_liveBubble);
-  }
-  _liveBubble.textContent = text;
-  if (wrap) wrap.scrollTop = wrap.scrollHeight;
-}
-
-// ── CLAUDE ──
-// Words that mean "stop what you're doing"
-const STOP_WORDS = ['stop', 'hold op', 'nok', 'stilhed', 'quiet', 'shut up', 'enough', 'lad være'];
-
-function isStopCommand(text) {
-  const t = text.toLowerCase().trim();
-  return STOP_WORDS.some(w => t === w || t.startsWith(w + ' ') || t.endsWith(' ' + w));
-}
-
-async function sendToClaude(text) {
-  if (isStopCommand(text)) {
-    stopSpeaking();
-    if (activeProject) conversationHistory = conversationHistory.slice(0, -2);
-    else homeHistory = homeHistory.slice(0, -2);
-    speak('Ok.');
-    return;
-  }
-  console.log('sendToClaude called, text:', text, 'activeProject:', activeProject ? activeProject.name : 'null');
-  isThinking = true;
-  setMicState('thinking');
-  setLiveTranscript(''); // clear live bubble when sending
-  if (activeProject) {
-    addBubble('user', text);
-    conversationHistory.push({ role:'user', content:text });
-    const { error: msgErr } = await sb.from('messages').insert({ project_id: activeProject.id, role:'user', content:text });
-    if (msgErr) console.error('Save user message failed:', msgErr);
-    else console.log('Saved user message to project:', activeProject.id);
-  } else {
-    addBubble('user', text);
-    homeHistory.push({ role:'user', content:text });
-    if (homeHistory.length > 20) homeHistory = homeHistory.slice(-20);
-  }
-
-  const projectNames = projects.map(p => p.name).join(', ');
-  // Always use Danish timezone (Europe/Copenhagen) for date calculations
-  const now = new Date();
-  const copenhagenDate = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(now);
-  const todayStr = copenhagenDate; // 'sv-SE' gives YYYY-MM-DD format
-  const weekDayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  // Calculate weekday in Copenhagen timezone
-  const copenhagenWeekday = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Copenhagen', weekday: 'long' }).format(now);
-
-  // Generate next 60 days with ISO week numbers so Claude never miscalculates
-  function getISOWeek(date) {
-    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-  }
-  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  const next60 = Array.from({length: 60}, (_, i) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + i);
-    const dateStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(d);
-    const week = getISOWeek(d);
-    const dayName = dayNames[d.getDay()];
-    return `W${week} ${dayName} = ${dateStr}`;
-  });
-  const calendarMap = next60.join(', ');
-  const tomorrow = new Date(now); tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowDate2 = new Date(now);
-  tomorrowDate2.setDate(tomorrowDate2.getDate() + 1);
-  const tomorrowStr = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Europe/Copenhagen' }).format(tomorrowDate2);
-
-  // Fetch upcoming calendar events to inject into system prompt
-  let calendarContext = '';
-  try {
-    const calRes = await fetch('/api/google-calendar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'upcoming_14' })
-    });
-    const calData = await calRes.json();
-    const calEvents = calData.items || [];
-    if (calEvents.length > 0) {
-      calendarContext = '\n\nCALENDAR (next 12 months, up to 100 events):\n' + calEvents.map(e => {
-        const start = e.start.dateTime || e.start.date;
-        const end = e.end.dateTime || e.end.date;
-        return `- id:${e.id} | "${e.summary}" | start:${start} | end:${end}`;
-      }).join('\n');
-    } else {
-      calendarContext = '\n\nCALENDAR: No upcoming events.';
+      if (!res.ok) return false;
+      var data = await res.json();
+      if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
+      if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
+      if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
+      return true;
+    } catch(e) {
+      console.warn("Sync pull fejl:", e.message);
+      return false;
     }
-  } catch(err) { console.log('Could not fetch calendar context:', err); }
+  },
 
-  const weekday = copenhagenWeekday;
-  const system = `You are Vox — Martin Høgsgaard's personal AI assistant. Martin is a Danish external consultant working with clients on packaging, logistics, and software projects.
-Current projects: ${projectNames}.
-Today: ${todayStr} (${weekday}). Tomorrow: ${tomorrowStr}.
-ALWAYS use Europe/Copenhagen timezone for all dates and times. Today in Copenhagen is ${todayStr} (${weekday}).
-DATE REFERENCE — use this exact map, never calculate yourself:
-${calendarMap}
-For dates beyond 60 days, calculate from today (${todayStr}).
-${activeProject ? `Active project: "${activeProject.name}". When in a project, help Martin think, plan, brainstorm, and solve problems related to that project.` : 'No active project — general conversation mode.'}${calendarContext}
-
-You have full knowledge of the world — geography, business, technology, Danish culture and language, logistics, packaging, software development, and more. Use this knowledge freely.
-${driveFiles.length > 0 ? `\n\nPROJECT FILES in Google Drive (${driveFiles.length} file${driveFiles.length>1?'s':''}):\n${driveFiles.map(f=>f.name).join(', ')}${driveContext ? '\n\nFILE CONTENTS:\n' + driveContext : ''}` : ''}
-Martin often speaks Danish and you always reply in English. Martin is frequently driving, so your replies are read aloud. Be conversational and helpful — like a knowledgeable colleague, not a command processor.
-When Martin is brainstorming or asking for ideas, give real, concrete suggestions. Never say you "can't search" or "don't have access to information" — use your built-in knowledge.
-
-ACTIONS — append ONE on the last line when Martin asks you to act:
-ACTION:{"type":"create_project","name":"ProjectName"}
-ACTION:{"type":"open_project","name":"ProjectName"}
-ACTION:{"type":"delete_project","name":"ProjectName"}
-ACTION:{"type":"go_home"}
-ACTION:{"type":"open_drive_folder"}
-ACTION:{"type":"create_event","title":"Title","date":"2026-03-09","time":"14:00","duration":60}
-ACTION:{"type":"create_multiple_events","events":[{"title":"Pasta","date":"2026-03-09","time":"18:00","duration":30},{"title":"Pizza","date":"2026-03-10","time":"18:00","duration":30}]}
-ACTION:{"type":"delete_multiple_events","event_ids":["id1","id2","id3"]}
-ACTION:{"type":"create_multiple_events","events":[{"title":"Pasta","date":"2026-03-10","time":"18:00","duration":60},{"title":"Risotto","date":"2026-03-11","time":"18:00","duration":60}]}
-ACTION:{"type":"create_event","title":"Title","date":"2026-03-09","allday":true}
-ACTION:{"type":"create_event","title":"Reminder text","date":"2026-03-28","time":"12:00","reminder":true}
-ACTION:{"type":"delete_event","event_id":"EXACT_ID_FROM_CALENDAR_ABOVE"}
-ACTION:{"type":"update_event","event_id":"EXACT_ID_FROM_CALENDAR_ABOVE","new_time":"15:00","new_date":"2026-03-09","new_title":"New title","new_duration":90}
-ACTION:{"type":"create_event_and_invite","title":"ByAulum møde","date":"2026-03-09","time":"10:00","duration":60,"invite_to":"Martin Høgsgaard"}
-ACTION:{"type":"find_contact","query":"Mie","subject":"Subject","body":"Email body"}
-ACTION:{"type":"send_email","to":"email@example.com","subject":"Subject","body":"Email body text"}
-ACTION:{"type":"spell_email","email":"mie@example.dk"}
-ACTION:{"type":"confirm_email","index":1}
-ACTION:{"type":"read_inbox"}
-ACTION:{"type":"read_email","message_id":"MESSAGE_ID"}
-
-Rules:
-- Reply in English. If Martin asks a factual or informational question (addresses, directions, information, advice), give a complete helpful answer. For action confirmations and small talk, keep it to 1-2 sentences. Martin is often driving so be concise but never refuse to answer a question due to length.
-- For calendar READ requests ("har jeg møder", "hvad sker der", "vis mig", "er der noget"): answer directly from CALENDAR above. NO action. Never create an event when asked a question about existing events.
-- For calendar WRITE requests: use the exact event_id from CALENDAR. Never guess or omit event_id.
-- Event titles must be SHORT — max 5 words. NEVER put recipes, shopping lists, or instructions in the title. Just the dish name e.g. "Chicken Tikka Masala" not the full recipe.
-- For MULTIPLE events (e.g. 5 dinners Mon-Fri), use create_multiple_events with all events in one action. Titles max 5 words each.
-- For all-day events: set allday:true, omit time/duration.
-- For reminders/notes: set reminder:true — creates a 15-min popup event with 🔔 prefix.
-- For send_email: if "to" is a name without @, use find_contact instead. Write a full professional email body.
-- For create_event_and_invite: ONLY use when Martin explicitly says BOTH "opret møde" AND "send invitation/mødeindkaldelse til [person]" in the SAME request. Never combine them unless both are clearly stated.
-- For find_contact: ONLY use when you have NOT yet searched for this person. Martin's own name is "Martin Høgsgaard" — if he says his own name with any spelling variation (høstgaard, høesgaard, høsgaard etc), use "Martin Høgsgaard". Common contacts: Mie Priess-Sørensen (his wife). Always use the correct Danish spelling. If you already found a contact and said so, do NOT search again — use confirm_email instead.
-- For confirm_email: use when Martin says yes/ja/correct/that one/number, OR when you already found a contact and Martin says anything that isn't a clear rejection. index=1 for first result.
-- For spell_email: use when Martin spells out an email address letter by letter (e.g. "m i e at w e p r o d u c e dot d k" → "mie@weproduce.dk"). Parse it into a proper email address.
-- IMPORTANT: Once a contact has been found and spoken aloud, treat all subsequent replies as confirmation or rejection — never search again for the same person.
-- For send_confirmed_email: use when Martin has confirmed an address and now provides subject and body content. Write the full email body.
-- For read_inbox: reads Martin's 5 latest emails aloud.
-- For open_drive_folder: use when Martin asks about project files, documents, or wants to refresh file context.
-- Only ONE action per reply — EXCEPT create_multiple_events and delete_multiple_events which handle batches.
-- When deleting events, ALWAYS use list_calendar first to find the correct event IDs. Never guess or reuse old IDs from history.
-- If Martin says "stop", "nok", "hold op" or similar — stop immediately, apologize briefly, and ask what he needs instead. Never repeat content he has already rejected.
-- NEVER read out full recipes, long lists, documents or detailed content aloud — Martin is driving. Instead say "I've added X to your calendar" or "Done — 5 recipes saved". Keep all spoken replies under 3 sentences.
-- When adding ANY content to calendar (recipes, sports activities, tasks, ideas, plans etc): put a short title as the event title, and put ALL detailed content (instructions, equipment lists, shopping lists, notes etc) in the "description" field. Never put long content in the title.
-- When adding multiple calendar events, use create_multiple_events with all events in one action — never create them one by one.
-- If Martin asks to save/add something to calendar, do it — don't describe what you're saving.
-- Only use web search for questions about current events, prices, addresses, weather, news or facts you don't know. NEVER search when creating events, sending emails, managing projects, or answering from calendar context.`;
-
-  // Send last 10 messages to Claude (keeps context without exceeding token limits)
-  const messages = activeProject
-    ? (conversationHistory.length > 0 ? conversationHistory.slice(-20) : [{ role:'user', content:text }])
-    : (homeHistory.length > 0 ? homeHistory.slice(-20) : [{ role:'user', content:text }]);
-  console.log('Sending', messages.length, 'messages to Claude:', messages.map(m => m.role + ': ' + m.content.substring(0,60)));
-
-  try {
-    const res = await fetch('/api/claude', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:1500, system, messages })
-    });
-    const data = await res.json();
-    let reply = data.content[0].text;
-
-    // Parse action but DON'T run it yet
-    const actionLineMatch = reply.match(/ACTION:(\{[^\n]+\})/);
-    let parsedAction = null;
-    if (actionLineMatch) {
-      reply = reply.replace(/\nACTION:\{[^\n]+\}/, '').trim();
+  push: function(payload) {
+    clearTimeout(this._timer);
+    this._pending = Object.assign(this._pending, payload);
+    var self = this;
+    this._timer = setTimeout(async function() {
+      if (self._syncing) return;
+      self._syncing = true;
       try {
-        parsedAction = JSON.parse(actionLineMatch[1]);
-        console.log('Parsed action:', JSON.stringify(parsedAction));
-      } catch(e) { console.log('Action parse error:', e, 'Raw:', actionLineMatch[1]); }
-    }
-
-    if (activeProject) {
-      addBubble('assistant', reply);
-      const { error: aErr } = await sb.from('messages').insert({ project_id: activeProject.id, role:'assistant', content:reply });
-      if (aErr) console.error('Save assistant message failed:', aErr);
-      else console.log('Saved assistant message to project:', activeProject.id);
-      conversationHistory.push({ role:'assistant', content:reply });
-    } else {
-      addBubble('assistant', reply);
-      homeHistory.push({ role:'assistant', content:reply });
-      if (homeHistory.length > 20) homeHistory = homeHistory.slice(-20);
-    }
-    isThinking = false;
-
-    // Speak reply first — then execute action when speech is done
-    speak(reply, async () => {
-      setMicState('idle');
-      setMicHint('Tryk for at tale');
-      if (parsedAction) {
-        await executeAction(parsedAction);
-      }
-    });
-  } catch(e) {
-    console.log('Claude error:', e);
-    isThinking = false;
-    speak('Sorry, something went wrong. Please try again.', () => { setMicState('idle'); setMicHint('Tryk for at tale'); });
-  }
-}
-
-// ── CONFIRM CARD ──
-function showConfirmCard(label, value, onYes, onNo) {
-  const card = document.getElementById('confirmCard');
-  const lbl = document.getElementById('confirmLabel');
-  const val = document.getElementById('confirmValue');
-  if (!card) return;
-  lbl.textContent = label;
-  val.textContent = value;
-  card.style.display = 'block';
-  window._confirmYes = onYes;
-  window._confirmNo = onNo;
-}
-
-function hideConfirmCard() {
-  const card = document.getElementById('confirmCard');
-  if (card) card.style.display = 'none';
-  window._confirmYes = null;
-  window._confirmNo = null;
-}
-
-function confirmCardYes() {
-  hideConfirmCard();
-  if (window._confirmYes) window._confirmYes();
-}
-
-function confirmCardNo() {
-  hideConfirmCard();
-  stopSpeaking();
-  if (window._confirmNo) window._confirmNo();
-  else {
-    const msg = 'Ok, cancelled.';
-    saveToHistory('assistant', msg);
-    speak(msg);
-  }
-}
-
-async function executeAction(action) {
-  console.log('Executing action:', action);
-  if (action.type === 'create_project') {
-    const { data, error } = await sb.from('projects').insert({ name: action.name }).select();
-    if (!error && data && data.length > 0) {
-      await loadProjects();
-      setTimeout(() => openProject(data[0]), 300);
-    } else {
-      console.log('Create project error:', error);
-    }
-  } else if (action.type === 'open_project') {
-    const p = projects.find(p => p.name.toLowerCase().includes(action.name.toLowerCase()));
-    if (p) setTimeout(() => openProject(p), 300);
-  } else if (action.type === 'delete_project') {
-    const p = projects.find(p => p.name.toLowerCase().includes(action.name.toLowerCase()));
-    if (p) {
-      // Delete all messages for this project first
-      await sb.from('messages').delete().eq('project_id', p.id);
-      await sb.from('projects').delete().eq('id', p.id);
-      if (activeProject && activeProject.id === p.id) goHome();
-      await loadProjects();
-    }
-  } else if (action.type === 'connect_calendar') {
-    window.location.href = '/api/google-auth?force=true';
-  } else if (action.type === 'list_upcoming') {
-    const waitAndList = () => {
-      if (isSpeaking) { setTimeout(waitAndList, 300); return; }
-      listUpcomingEvents();
-    };
-    setTimeout(waitAndList, 500);
-  } else if (action.type === 'list_date') {
-    const d = action.date, tf = action.time_from, tt = action.time_to;
-    const waitAndList = () => {
-      if (isSpeaking) { setTimeout(waitAndList, 300); return; }
-      listDateEvents(d, tf, tt);
-    };
-    setTimeout(waitAndList, 500);
-  } else if (action.type === 'find_event') {
-    const waitAndFind = () => {
-      if (isSpeaking) { setTimeout(waitAndFind, 300); return; }
-      findCalendarEvent(action.query);
-    };
-    setTimeout(waitAndFind, 500);
-  } else if (action.type === 'delete_multiple_events') {
-    const ids = action.event_ids || [];
-    let deleted = 0;
-    for (const id of ids) {
-      try {
-        const res = await fetch('/api/google-calendar', {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'delete', event: { event_id: id } })
+        var key = await API.getAppKey();
+        await fetch("/api/store", {
+          method: "POST",
+          headers: { "Content-Type":"application/json", "x-app-key": key||"" },
+          body: JSON.stringify(self._pending)
         });
-        const data = await res.json();
-        if (!data.error) deleted++;
-        else console.log('Failed to delete:', id, data.error);
-      } catch(e) { console.log('Failed to delete:', id, e); }
-    }
-    const msg = `Deleted ${deleted} event${deleted !== 1 ? 's' : ''}.`;
-    saveToHistory('assistant', msg);
-    speak(msg);
-  } else if (action.type === 'delete_event') {
-    if (action.event_id) {
-      await deleteCalendarEvent(action.event_id);
-    } else if (action.query || action.title) {
-      const q = action.query || action.title;
-      await findCalendarEvent(q, true);
-      if (lastFoundEvents.length === 1) {
-        await deleteCalendarEvent(lastFoundEvents[0].id);
-      } else if (lastFoundEvents.length > 1) {
-        speak(`I found ${lastFoundEvents.length} events matching that. Please be more specific.`);
-      } else {
-        speak(`I could not find an event called "${q}".`);
+        self._pending = {};
+      } catch(e) {
+        console.warn("Sync push fejl:", e.message);
+      } finally {
+        self._syncing = false;
       }
-    } else {
-      speak("I could not identify that event. Please say the event name.");
-    }
-  } else if (action.type === 'update_event') {
-    if (action.event_id) {
-      await updateCalendarEvent(action.event_id, action.new_title, action.new_date, action.new_time, action.new_duration, action.description);
-    } else {
-      speak("I could not identify that event. Please try again.");
-    }
-  } else if (action.type === 'list_calendar') {
-    // Wait for Claude to finish speaking before reading calendar
-    const waitAndList = () => {
-      if (isSpeaking) { setTimeout(waitAndList, 300); return; }
-      listCalendarEvents();
-    };
-    setTimeout(waitAndList, 500);
-  } else if (action.type === 'create_event_and_invite') {
-    // Create event then find contact and send invite
-    await createCalendarEvent(action.title, action.date, action.time, action.duration, false, false);
-    if (action.invite_to) {
-      window._pendingInvite = {
-        title: action.title,
-        date: action.date,
-        time: action.time,
-        duration: action.duration || 60
-      };
-      await findContact(action.invite_to, 
-        `Mødeindkaldelse: ${action.title}`,
-        buildInviteBody(action.title, action.date, action.time, action.duration || 60)
-      );
-    }
-  } else if (action.type === 'create_multiple_events') {
-    const events = action.events || [];
-    let created = 0;
-    for (const e of events) {
-      try {
-        await createCalendarEvent(e.title, e.date, e.time, e.duration || 60, e.allday, e.reminder || false, e.description || '', true);
-        created++;
-      } catch(err) { console.log('Failed to create event:', e.title, err); }
-    }
-    const msg = `Done. Added ${created} event${created !== 1 ? 's' : ''} to your calendar.`;
-    saveToHistory('assistant', msg);
-    speak(msg);
-  } else if (action.type === 'create_event') {
-    await createCalendarEvent(action.title, action.date, action.time, action.duration, action.allday, action.reminder, action.description || '');
-  } else if (action.type === 'find_contact') {
-    await findContact(action.query, action.subject, action.body);
-  } else if (action.type === 'send_confirmed_email') {
-    if (window._confirmedEmail) {
-      await sendEmail(window._confirmedEmail, action.subject, action.body);
-      window._confirmedEmail = null;
-      window._foundContacts = null;
-    }
-  } else if (action.type === 'spell_email') {
-    // User spelled out an email address — confirm and send
-    if (window._pendingEmail) {
-      const email = action.email;
-      const name = window._pendingContactQuery || email;
-      window._foundContacts = [{ name, emails: [email] }];
-      const msg = `Got it. I'll send to ${speakableEmail(email)}. Shall I send?`;
-      saveToHistory('assistant', msg);
-      speak(msg);
-    }
-  } else if (action.type === 'confirm_email') {
-    if (window._foundContacts) {
-      const idx = (action.index || 1) - 1;
-      const contact = window._foundContacts[idx];
-      if (contact) {
-        const draft = window._pendingEmailDraft || {};
-        if (draft.subject && draft.body) {
-          // We already have content — wait for speech then send
-          window._pendingEmail = null;
-          window._pendingEmailDraft = null;
-          const emailTo = contact.emails[0];
-          window._foundContacts = null;
-          hideConfirmCard();
-          const waitAndSend = () => {
-            if (isSpeaking) { setTimeout(waitAndSend, 300); return; }
-            sendEmail(emailTo, draft.subject, draft.body);
-          };
-          setTimeout(waitAndSend, 300);
-        } else {
-          // Address confirmed — ask for content
-          window._confirmedEmail = contact.emails[0];
-          window._foundContacts = null;
-          hideConfirmCard();
-          const msg = `Got it. What should the email say?`;
-          saveToHistory('assistant', msg);
-          speak(msg);
-        }
-      }
-    }
-  } else if (action.type === 'send_email') {
-    // Always search contacts if address looks fake/guessed (example.com, placeholder, no real domain)
-    const looksReal = action.to && action.to.includes('@') && 
-      !action.to.includes('example.com') && 
-      !action.to.includes('placeholder') &&
-      action.to.split('@')[1]?.includes('.');
-    if (!looksReal) {
-      // Extract name from fake address or use as-is
-      const query = action.to?.includes('@') 
-        ? action.to.split('@')[0].replace(/[._]/g,' ') 
-        : action.to;
-      await findContact(query, action.subject, action.body);
-    } else {
-      await sendEmail(action.to, action.subject, action.body);
-    }
-  } else if (action.type === 'read_inbox') {
-    const waitAndRead = () => {
-      if (isSpeaking) { setTimeout(waitAndRead, 300); return; }
-      readInbox();
-    };
-    setTimeout(waitAndRead, 500);
-  } else if (action.type === 'read_email') {
-    const waitAndRead = () => {
-      if (isSpeaking) { setTimeout(waitAndRead, 300); return; }
-      readEmail(action.message_id);
-    };
-    setTimeout(waitAndRead, 500);
-  } else if (action.type === 'open_drive_folder') {
-    // Refresh drive context for current project
-    if (activeProject) {
-      await fetchDriveContext(activeProject.name);
-      const msg = driveFiles.length > 0
-        ? `Found ${driveFiles.length} file${driveFiles.length>1?'s':''} in the ${activeProject.name} folder: ${driveFiles.map(f=>f.name).join(', ')}.`
-        : `The ${activeProject.name} Drive folder is empty. Add files in Google Drive under Vox/${activeProject.name}.`;
-      saveToHistory('assistant', msg);
-      speak(msg);
-    }
-  } else if (action.type === 'go_home') {
-    goHome();
+    }, 1500);
   }
-}
+};
 
-async function listCalendarEvents(date) {
-  try {
-    const action = date ? 'list_date' : 'list';
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action, date })
-    });
-    const data = await res.json();
-    if (data.error) { speak('Calendar error: ' + data.error); return; }
-    const events = data.items || [];
-    const dayLabel = date ? new Date(date).toLocaleDateString('en', {weekday:'long'}) : 'today';
-    let msg;
-    if (events.length === 0) {
-      msg = date ? `You have no events on ${dayLabel}.` : "You have no more events today.";
-    } else {
-      const summary = events.map(e => {
-        const time = e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('en', {hour:'2-digit',minute:'2-digit'}) : 'All day';
-        return `${time}, ${e.summary}`;
-      }).join('. ');
-      msg = `On ${dayLabel} you have ${events.length} event${events.length > 1 ? 's' : ''}. ${summary}.`;
-    }
-    saveToHistory('assistant', msg);
-    speak(msg);
-  } catch(e) { speak('Could not load calendar events.'); }
-}
+// ─── API ─────────────────────────────────────────────────────────
+var API = {
+async getAppKey() {
+if (window.EC.appKey) return window.EC.appKey;
+var res = await fetch("/api/config");
+var data = await res.json();
+window.EC.appKey = data.appKey;
+return window.EC.appKey;
+},
 
-async function createCalendarEvent(title, date, time, duration, allday, reminder, description, silent = false) {
-  try {
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'create', event: { title, date, time, duration, allday, reminder, description } })
-    });
-    const data = await res.json();
-    if (!silent) {
-      if (data.id) speak(`Done. ${title} has been added to your calendar.`);
-      else speak('Could not create the event. Please try again.');
-    }
-    return data;
-  } catch(e) {
-    if (!silent) speak('Could not create calendar event.');
-    throw e;
-  }
-}
-
-async function listDateEvents(date, timeFrom, timeTo) {
-  try {
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'list_date', date, time_from: timeFrom, time_to: timeTo })
-    });
-    const data = await res.json();
-    const events = data.items || [];
-    const dayLabel = new Date(date + 'T12:00:00').toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' });
-    const timeLabel = timeFrom ? ` between ${timeFrom} and ${timeTo || 'end of day'}` : '';
-    if (events.length === 0) {
-      const noMsg = `You have no events on ${dayLabel}${timeLabel}.`;
-      saveToHistory('assistant', noMsg);
-      speak(noMsg);
-      return;
-    }
-    const summary = events.map(e => {
-      const time = e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : 'All day';
-      return `${time}, ${e.summary}`;
-    }).join('. ');
-    const msg = `On ${dayLabel}${timeLabel} you have ${events.length} event${events.length > 1 ? 's' : ''}. ${summary}.`;
-    saveToHistory('assistant', msg);
-    speak(msg);
-  } catch(e) { speak('Could not load events for that day.'); }
-}
-
-async function listUpcomingEvents() {
-  try {
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'upcoming' })
-    });
-    const data = await res.json();
-    const events = data.items || [];
-    if (events.length === 0) { saveToHistory('assistant', "You have no upcoming events this week."); speak("You have no upcoming events this week."); return; }
-    const summary = events.map(e => {
-      const d = new Date(e.start.dateTime || e.start.date);
-      const day = d.toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' });
-      const time = e.start.dateTime ? d.toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
-      return `${day}${time ? ' at ' + time : ''}: ${e.summary}`;
-    }).join('. ');
-    const msg = `You have ${events.length} upcoming events. ${summary}.`;
-    saveToHistory('assistant', msg);
-    speak(msg);
-  } catch(e) { speak('Could not load upcoming events.'); }
-}
-
-// Store last found events for follow-up delete/edit
-let lastFoundEvents = [];
-
-async function loadTodayEventsForContext() {
-  try {
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'list' })
-    });
-    const data = await res.json();
-    lastFoundEvents = data.items || [];
-    console.log('Loaded today events for context:', lastFoundEvents.map(e => e.summary));
-  } catch(e) { console.error('Could not load today events:', e); }
-}
-
-async function findCalendarEvent(query, silent = false) {
-  try {
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'search', event: { query } })
-    });
-    const data = await res.json();
-    lastFoundEvents = data.items || [];
-    if (silent) return; // Used internally before update/delete
-    if (lastFoundEvents.length === 0) { speak(`I could not find any event matching "${query}".`); return; }
-    if (lastFoundEvents.length === 1) {
-      const e = lastFoundEvents[0];
-      const time = e.start.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('en', { hour: '2-digit', minute: '2-digit' }) : '';
-      speak(`Found: ${e.summary}${time ? ' at ' + time : ''}. Say delete it or tell me how to update it.`);
-    } else {
-      const names = lastFoundEvents.slice(0,3).map(e => e.summary).join(', ');
-      speak(`Found ${lastFoundEvents.length} events: ${names}. Please be more specific.`);
-    }
-  } catch(e) { speak('Could not search calendar.'); }
-}
-
-async function deleteCalendarEvent(eventId) {
-  try {
-    // If no eventId but we have lastFoundEvents, use the first one
-    const id = eventId || (lastFoundEvents[0] && lastFoundEvents[0].id);
-    if (!id) { speak('I do not know which event to delete. Please say find event first.'); return; }
-    const eventName = lastFoundEvents[0] ? lastFoundEvents[0].summary : 'the event';
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'delete', event: { id } })
-    });
-    const data = await res.json();
-    if (data.success) { lastFoundEvents = []; speak(`Done. ${eventName} has been deleted from your calendar.`); }
-    else speak('Could not delete the event. Please try again.');
-  } catch(e) { speak('Could not delete the event.'); }
-}
-
-async function updateCalendarEvent(eventId, newTitle, newDate, newTime, newDuration, description) {
-  try {
-    if (!eventId) { speak('I do not know which event to update.'); return; }
-    const updates = {};
-    if (newTitle) updates.summary = newTitle;
-    if (description) updates.description = description;
-    if (newDate || newTime) {
-      // We need the original event to preserve unchanged fields
-      const getRes = await fetch('/api/google-calendar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'get', event: { id: eventId } })
-      });
-      const original = await getRes.json();
-      const origStart = original.start?.dateTime || original.start?.date || '';
-      const startDate = newDate || origStart.split('T')[0];
-      const startTime = newTime || (origStart.includes('T') ? origStart.split('T')[1].substring(0,5) : '09:00');
-      const duration = newDuration || 60;
-      const start = new Date(`${startDate}T${startTime}:00`);
-      const end = new Date(start.getTime() + duration * 60000);
-      updates.start = { dateTime: start.toISOString(), timeZone: 'Europe/Copenhagen' };
-      updates.end = { dateTime: end.toISOString(), timeZone: 'Europe/Copenhagen' };
-    }
-    const res = await fetch('/api/google-calendar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update', event: { id: eventId, updates } })
-    });
-    const data = await res.json();
-    if (data.id) speak(`Done. The event has been updated.`);
-    else speak('Could not update the event. Please try again.');
-  } catch(e) { console.error('Update error:', e); speak('Could not update the event.'); }
-}
-
-// ── GOOGLE DRIVE ──
-async function fetchDriveContext(projectName) {
-  try {
-    const res = await fetch('/api/drive', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'get_project_context', projectName })
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    driveContext = data.context || '';
-    driveFiles = data.files || [];
-    console.log(`Drive: loaded ${driveFiles.length} files for "${projectName}"`);
-  } catch(e) {
-    console.log('Drive context error:', e.message);
-    driveContext = '';
-    driveFiles = [];
-  }
-}
-
-async function ensureProjectFolder(projectName) {
-  try {
-    await fetch('/api/drive', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'ensure_project_folder', projectName })
-    });
-  } catch(e) { console.log('Drive folder error:', e.message); }
-}
-
-// ── GMAIL ──
-// Convert email address to speakable text — NO dots (they break sentence splitter)
-function speakableEmail(email) {
-  if (!email) return '';
-  const [user, domain] = email.split('@');
-  if (!domain) return email;
-  const domainClean = domain.replace(/\./g, ' dot ');
-  const userSpoken = user.length <= 5
-    ? user.toUpperCase().split('').join(' ')
-    : user.replace(/[._-]/g, ' ');
-  return `${userSpoken} at ${domainClean}`;
-}
-
-// Build a meeting invite email body
-function buildInviteBody(title, date, time, duration) {
-  const d = new Date(`${date}T${time || '09:00'}:00`);
-  const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-  const dateStr = d.toLocaleDateString('da-DK', options);
-  const timeStr = time || '09:00';
-  const endDate = new Date(d.getTime() + duration * 60000);
-  const endTime = endDate.toTimeString().substring(0, 5);
-  return `Hej,
-
-Jeg vil gerne invitere dig til følgende møde:
-
-Emne: ${title}
-Dato: ${dateStr}
-Tidspunkt: ${timeStr} - ${endTime}
-
-Ses vi?
-
-Venlig hilsen
-Martin`;
-}
-
-// Pending email state for contact confirmation flow
-window._pendingEmail = null;
-window._foundContacts = null;
-
-async function findContact(query, subject, body) {
-  console.log('findContact called with query:', query);
-  try {
-    const res = await fetch('/api/gmail', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'find_contact', query })
-    });
-    console.log('findContact HTTP status:', res.status);
-    const data = await res.json();
-    console.log('findContact response:', JSON.stringify(data));
-    const contacts = data.contacts || [];
-
-    // Clean up garbled name from email headers
-    contacts.forEach(c => {
-      c.name = c.name.replace(/^["\\ ]+|["\\ ]+$/g, '').trim();
-    });
-
-    if (contacts.length === 0) {
-      window._pendingEmail = { subject, body };
-      window._pendingContactQuery = query;
-      const msg = `I could not find anyone named ${query}. Please say their email address.`;
-      saveToHistory('assistant', msg);
-      speakQueued(msg);
-      return;
-    }
-
-    // Store pending email — but NOT subject/body yet, confirm address first
-    window._pendingEmail = { subject: '', body: '' };
-    window._pendingEmailDraft = { subject, body };
-    window._foundContacts = contacts;
-    window._awaitingEmailContent = false;
-
-    let msg;
-    // Flatten: one entry per email address
-    const flat = [];
-    contacts.forEach(c => {
-      (c.emails || []).forEach(e => flat.push({ name: c.name || e, email: e }));
-    });
-
-    if (flat.length === 1) {
-      msg = `I found ${flat[0].name}. Is this the right address?`;
-      saveToHistory('assistant', msg);
-      speakQueued(msg, () => {
-        // Show confirm card after speech
-        showConfirmCard(
-          `Send mail til ${flat[0].name}`,
-          flat[0].email,
-          () => {
-            // Yes — confirm
-            window._confirmedEmail = flat[0].email;
-            window._foundContacts = null;
-            hideConfirmCard();
-            const doneMsg = `Got it. What should the email say?`;
-            saveToHistory('assistant', doneMsg);
-            speak(doneMsg);
-          },
-          () => {
-            // No — ask to spell
-            window._foundContacts = null;
-            hideConfirmCard();
-            const noMsg = `Ok. Please say the correct email address.`;
-            saveToHistory('assistant', noMsg);
-            speak(noMsg);
-          }
-        );
-      });
-    } else {
-      // Store flat list so confirm_email index works correctly
-      window._foundContacts = flat.map(c => ({ name: c.name, emails: [c.email] }));
-      const lines = [`I found ${flat.length} addresses for ${flat[0].name}.`];
-      flat.forEach((c, i) => lines.push(`Number ${i + 1}: ${speakableEmail(c.email)}`));
-      lines.push('Which one should I use?');
-      msg = lines.join(' ');
-      saveToHistory('assistant', msg);
-      lines.forEach(line => speakQueued(line));
-    }
-  } catch(e) { speak('Could not search contacts.'); }
-}
-
-async function sendEmail(to, subject, body) {
-  try {
-    const res = await fetch('/api/gmail', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'send', to, subject, body })
-    });
-    const data = await res.json();
-    if (data.id) {
-      const name = to.split('@')[0];
-      const msg = `Email sent.`;
-      saveToHistory('assistant', msg);
-      speak(msg);
-    } else {
-      speak('Could not send the email. ' + (data.error || 'Please try again.'));
-    }
-  } catch(e) { speak('Could not send the email.'); }
-}
-
-async function readInbox() {
-  try {
-    const res = await fetch('/api/gmail', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'list' })
-    });
-    const data = await res.json();
-    const messages = data.messages || [];
-    if (messages.length === 0) { speak('Your inbox is empty.'); return; }
-    const summary = messages.map((m, i) => {
-      const from = m.from.replace(/<.*>/, '').trim() || m.from;
-      return `${i + 1}. From ${from}: ${m.subject}`;
-    }).join('. ');
-    const msg = `You have ${messages.length} recent emails. ${summary}.`;
-    saveToHistory('assistant', msg);
-    // Store message IDs for follow-up
-    window._lastInboxMessages = messages;
-    speak(msg);
-  } catch(e) { speak('Could not load your inbox.'); }
-}
-
-async function readEmail(messageId) {
-  try {
-    const res = await fetch('/api/gmail', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'get', messageId })
-    });
-    const data = await res.json();
-    if (data.body) {
-      const msg = `Email from ${data.from}. Subject: ${data.subject}. ${data.body.substring(0, 500)}`;
-      saveToHistory('assistant', msg);
-      speak(msg);
-    } else {
-      speak('Could not read that email.');
-    }
-  } catch(e) { speak('Could not read that email.'); }
-}
-
-// ── VOICE COMMANDS ──
-function handleCommand(text) {
-  const t = text.toLowerCase();
-  setTranscript(text);
-
-  if (t.includes('morgenoverblik') || t.includes('morning brief') || t.includes('godmorgen')) { playMorningBrief(); return; }
-  if ((t.includes('gå hjem') || t.includes('tilbage') || t.includes('hjem')) && activeProject) { goHome(); speak('Going home.'); return; }
-
-  // If already in a project, don't navigate — send to Claude instead
-  if (activeProject) {
-    sendToClaude(text);
-    return;
-  }
-
-  // From home screen: check if user said a project name to navigate
-  for (const p of projects) {
-    if (t.includes(p.name.toLowerCase())) {
-      openProject(p);
-      speak(`Opening ${p.name}.`);
-      return;
-    }
-  }
-
-  // Direct reconnect bypass
-  if (t.includes('reconnect') || t.includes('forbind igen') || t.includes('connect again')) {
-    window.location.href = '/api/google-auth?force=true';
-    return;
-  }
-
-  // No project match — send to Claude from home
-  sendToClaude(text);
-}
-
-// ── PUSH TO TALK ──
-let micTranscript = ''; // Accumulates across restarts
-
-function startListening() {
-  if (isThinking) return;
-  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-    setMicHint('Stemme ikke understøttet — brug Safari');
-    return;
-  }
-  if (isSpeaking || _speakBusy) stopSpeaking();
-  isListening = true;
-  micTranscript = '';
-  setMicState('listening');
-  setMicHint('Tryk igen for at sende');
-  setTranscript('');
-  _startRecognitionInstance();
-}
-
-function _startRecognitionInstance() {
-  if (!isListening) return;
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  recognition = new SR();
-  recognition.lang = 'da-DK';
-  recognition.interimResults = true;
-  recognition.continuous = true;
-
-  recognition.onresult = e => {
-    let interim = micTranscript;
-    for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) micTranscript += e.results[i][0].transcript + ' ';
-      else interim = micTranscript + e.results[i][0].transcript;
-    }
-    const t = interim.trim();
-    setTranscript(t);
-    setLiveTranscript(t);
-  };
-
-  recognition.onend = () => {
-    recognition = null;
-    if (isListening) {
-      // iOS killed it — restart silently to keep mic open
-      setTimeout(_startRecognitionInstance, 100);
-    }
-  };
-
-  recognition.onerror = e => {
-    recognition = null;
-    if (e.error === 'not-allowed') {
-      isListening = false;
-      setMicState('idle');
-      setMicHint('Mikrofon ikke tilladt — tjek indstillinger');
-    } else if (isListening) {
-      // Restart on other errors
-      setTimeout(_startRecognitionInstance, 200);
-    }
-  };
-
-  try {
-    recognition.start();
-  } catch(e) {
-    console.log('Recognition start error:', e);
-    if (isListening) setTimeout(_startRecognitionInstance, 300);
-  }
-}
-
-function stopListening() {
-  isListening = false;
-  if (recognition) {
-    try { recognition.stop(); } catch {}
-    recognition = null;
-  }
-  const transcript = micTranscript.trim();
-  micTranscript = '';
-  setLiveTranscript(''); // clear live bubble
-  return transcript;
-}
-
-function handleMicTap() {
-  // Interrupt speech
-  if (isSpeaking || _speakBusy || _speakQueue.length > 0) {
-    stopSpeaking();
-    return;
-  }
-  if (isThinking) return;
-  if (isListening) {
-    const transcript = stopListening();
-    if (transcript && transcript.length > 1) {
-      handleCommand(transcript);
-    } else {
-      setMicState('idle');
-      setMicHint('Tryk for at tale');
-    }
-    return;
-  }
-  startListening();
-}
-
-// ── PAGE VISIBILITY — stop mic when app goes to background ──
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden) {
-    stopListening();
-    stopSpeaking();
-    setMicState('idle');
-    setMicHint('Tryk for at tale');
-  }
-});
-
-window.addEventListener('blur', () => {
-  stopListening();
-  setMicState('idle');
-  setMicHint('Tryk for at tale');
-});
-
-window.addEventListener('pagehide', () => {
-  stopListening();
-  stopSpeaking();
-});
-
-// ── iOS AUDIO UNLOCK via splash ──
-function startApp() {
-  // 1. Unlock AudioContext with user gesture
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const buf = ctx.createBuffer(1, 1, 22050);
-    const src = ctx.createBufferSource();
-    src.buffer = buf;
-    src.connect(ctx.destination);
-    src.start(0);
-    setTimeout(() => ctx.close(), 200);
-  } catch(e) { console.log('AudioContext error:', e); }
-
-  // 2. Unlock speechSynthesis with silent utterance
-  try {
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0;
-    speechSynthesis.speak(u);
-  } catch(e) {}
-
-  // 3. Load voices
-  loadVoices();
-  setTimeout(loadVoices, 300);
-  setTimeout(loadVoices, 1000);
-
-  // 4. Hide splash, show app
-  document.getElementById('splashScreen').style.display = 'none';
-
-  // 5. Init app
-  init();
-}
-
-
-
-// ── UI ──
-function setMicState(state) {
-  const btn = document.getElementById('micBtn');
-  const status = document.getElementById('micStatus');
-  btn.className = 'mic-outer';
-  if (state === 'listening') { btn.classList.add('listening'); status.textContent = 'Lytter'; }
-  else if (state === 'thinking') { btn.classList.add('thinking'); status.textContent = 'Tænker'; }
-  else if (state === 'speaking') { btn.classList.add('speaking'); status.textContent = 'Svarer'; }
-  else { btn.classList.add('idle'); status.textContent = 'Lytter'; }
-}
-function setTranscript(t) { document.getElementById('transcriptBox').textContent = t; }
-function setMicHint(t) { document.getElementById('micHint').textContent = t; }
-
-// ── MORNING BRIEF ──
-async function playMorningBrief() {
-  if (recognition) try { recognition.stop(); } catch {}
-  isListening = false;
-  const weather = await fetchWeather();
-  const d = new Date();
-  const days = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
-  const months = ['january','february','march','april','may','june','july','august','september','october','november','december'];
-  const pNames = projects.map(p => p.name).join(', ');
-  const brief = `Good morning Martin. Today is ${days[d.getDay()]}, ${d.getDate()}. ${months[d.getMonth()]}. Weather in Denmark: ${weather}. You have ${projects.length} active projects: ${pNames}. What would you like to start with today?`;
-  speak(brief);
-}
-
-// ── INIT ──
-async function init() {
-  setDate();
-  fetchWeather();
-  await loadProjects();
-  setMicState('idle');
-  setMicHint('Tryk for at tale');
-
-  // Check if returning from Google OAuth
-  const params = new URLSearchParams(window.location.search);
-  if (params.get('calendar') === 'connected') {
-    calendarConnected = true;
-    window.history.replaceState({}, '', '/');
-    speak('Google Calendar is now connected.');
-  } else if (params.get('calendar') === 'error') {
-    window.history.replaceState({}, '', '/');
-    speak('Could not connect Google Calendar. Please try again.');
-  }
-}
-// On iOS/Safari: show splash and wait for tap to unlock audio
-// On desktop: start immediately
-if (isIOS || isSafari) {
-  document.getElementById('splashScreen').style.display = 'flex';
+async req(path, method, body) {
+method = method || "GET";
+var opts, url;
+if (window.EC.useProxy) {
+var key = await this.getAppKey();
+url = "/api/proxy";
+opts = {
+method: "POST",
+headers: {
+"Content-Type": "application/json",
+"x-app-key": key || ""
+},
+body: JSON.stringify({path:path, method:method, body:body||undefined})
+};
 } else {
-  document.getElementById('splashScreen').style.display = 'none';
-  init();
+url = "https://restapi.e-conomic.com" + path;
+opts = {
+method: method,
+headers: {
+"Content-Type":"application/json",
+"X-AppSecretToken": window.EC.appSecret||"",
+"X-AgreementGrantToken": window.EC.agreementToken||""
 }
+};
+if (body) opts.body = JSON.stringify(body);
+}
+var res = await fetch(url, opts);
+if (res.status === 204) return null;
+var data = await res.json().catch(function(){return {};});
+if (!res.ok) throw new Error(data.message || "HTTP " + res.status);
+return data;
+},
+
+async getCustomers() {
+var d = await this.req("/customers?pagesize=100&sort=name");
+return (d.collection||[]).map(function(c){
+// e-conomic bruger: address, zip, city
+var parts = [];
+if (c.address)  parts.push(c.address);
+if (c.zip)      parts.push(c.zip);
+if (c.city)     parts.push(c.city);
+var addr = parts.join(" ");
+console.log("Kunde:", c.name, "Adresse:", addr, "Rå data:", JSON.stringify({address:c.address, zip:c.zip, city:c.city}));
+return {id:c.customerNumber, name:c.name, number:c.customerNumber, rate:null, address:addr};
+});
+},
+
+async findDraft(customerNumber) {
+var d = await this.req("/invoices/drafts?filter=customer.customerNumber$eq:"+customerNumber+"&pagesize=10");
+return (d.collection||[])[0] || null;
+},
+
+async getFirstLayout() {
+var d = await this.req("/layouts?pagesize=1");
+return (d.collection||[])[0]?.layoutNumber || null;
+},
+
+async getCustomerDetails(customerNumber) {
+var d = await this.req("/customers/"+customerNumber);
+return d;
+},
+
+async createDraft(customerNumber) {
+// Hent layout og kundeinfo fra e-conomic
+var layoutNumber = await this.getFirstLayout();
+var customer = await this.getCustomerDetails(customerNumber);
+var recipient = {
+name: customer.name || "",
+vatZone: {vatZoneNumber: customer.vatZone?.vatZoneNumber || 1}
+};
+if (customer.address) recipient.address = customer.address;
+if (customer.zip)     recipient.zip     = customer.zip;
+if (customer.city)    recipient.city    = customer.city;
+if (customer.country) recipient.country = customer.country;
+var body = {
+date: new Date().toISOString().split("T")[0],
+currency: customer.currency?.code || "DKK",
+paymentTerms: customer.paymentTerms ? {paymentTermsNumber: customer.paymentTerms.paymentTermsNumber} : {paymentTermsNumber:1},
+customer: {customerNumber: customerNumber},
+recipient: recipient
+};
+if (layoutNumber) body.layout = {layoutNumber: layoutNumber};
+return this.req("/invoices/drafts","POST",body);
+},
+
+async addLine(draftNumber, desc, qty, price) {
+var draft = await this.req("/invoices/drafts/"+draftNumber);
+var existingLines = draft.lines || [];
+var lineNumber = existingLines.length + 1;
+var productNumber = String(S.settings().productNumber||"2");
+var newLine = {
+lineNumber: lineNumber,
+description: desc,
+quantity: Math.round(qty * 100) / 100,
+unitNetPrice: Math.round(price * 100) / 100,
+discountPercentage: 0,
+unit: {unitNumber:1},
+product: {productNumber: productNumber}
+};
+draft.lines = existingLines.concat([newLine]);
+return this.req("/invoices/drafts/"+draftNumber, "PUT", draft);
+},
+
+async getDraftLines(draftNumber) {
+var d = await this.req("/invoices/drafts/"+draftNumber+"/lines");
+return d.collection||[];
+},
+
+async getAllDrafts() {
+var d = await this.req("/invoices/drafts?pagesize=50&sort=-draftInvoiceNumber");
+return d.collection||[];
+},
+
+async logHours(customerNumber, date, description, hours, rate) {
+var draft = await this.findDraft(customerNumber);
+if (!draft) draft = await this.createDraft(customerNumber);
+var dn = draft.draftInvoiceNumber;
+var fd = new Date(date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
+await this.addLine(dn, fd+" – "+description, hours, rate);
+return dn;
+}
+};
+
+// ─── CLOUD SYNC ──────────────────────────────────────────────────
+var SYNC = {
+  _timer: null,
+  _syncing: false,
+  _pending: {},
+
+  pull: async function() {
+    try {
+      var key = await API.getAppKey();
+      var res = await fetch("/api/store", {
+        headers: { "x-app-key": key||"" }
+      });
+      if (!res.ok) return false;
+      var data = await res.json();
+      if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
+      if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
+      if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
+      return true;
+    } catch(e) {
+      console.warn("Sync pull fejl:", e.message);
+      return false;
+    }
+  },
+
+  push: function(payload) {
+    clearTimeout(this._timer);
+    this._pending = Object.assign(this._pending, payload);
+    var self = this;
+    this._timer = setTimeout(async function() {
+      if (self._syncing) return;
+      self._syncing = true;
+      try {
+        var key = await API.getAppKey();
+        await fetch("/api/store", {
+          method: "POST",
+          headers: { "Content-Type":"application/json", "x-app-key": key||"" },
+          body: JSON.stringify(self._pending)
+        });
+        self._pending = {};
+      } catch(e) {
+        console.warn("Sync push fejl:", e.message);
+      } finally {
+        self._syncing = false;
+      }
+    }, 1500);
+  }
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────────
+var DAYS   = ["Søndag","Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag"];
+var MONTHS = ["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"];
+var MONTHS_S = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+var QUICK  = []; // Hurtigknapper fjernet
+
+function fmt(n) {
+if (n===null||n===undefined) return "–";
+return (n%1===0) ? String(n) : String(n).replace(".",",");
+}
+
+function parseH(s) {
+if (!s) return null;
+var n = parseFloat(String(s).replace(",","."));
+return (isNaN(n)||n<=0) ? null : n;
+}
+
+function todayStr() {
+return new Date().toISOString().split("T")[0];
+}
+
+function dateLabel(ds) {
+var d = new Date(ds+"T00:00:00");
+var t = todayStr();
+var y = new Date(Date.now()-86400000).toISOString().split("T")[0];
+if (ds===t) return "I dag";
+if (ds===y) return "I går";
+return d.getDate()+". "+MONTHS_S[d.getMonth()]+" "+d.getFullYear();
+}
+
+function weeklySums() {
+var entries = S.entries();
+var now = new Date();
+var day = now.getDay()||7;
+var mon = new Date(now); mon.setDate(now.getDate()-day+1); mon.setHours(0,0,0,0);
+var t = todayStr(), today=0, week=0;
+entries.forEach(function(e){
+var d=new Date(e.date+"T00:00:00");
+if (e.date===t) today+=e.hours;
+if (d>=mon) week+=e.hours;
+});
+return {today:today, week:week};
+}
+
+var _toastTimer;
+function toast(msg, dur) {
+dur = dur||3200;
+clearTimeout(_toastTimer);
+document.getElementById("toaster").innerHTML = '<div class="toast">'+msg+'</div>';
+_toastTimer = setTimeout(function(){document.getElementById("toaster").innerHTML="";}, dur);
+}
+
+// SVG icons
+var ICONS = {
+clock:   '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+history: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0"/><path d="M12 7v5l3 3"/></svg>',
+file:    '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>',
+user:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
+send:    '<svg viewBox="0 0 24 24"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+refresh: '<svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9A9 9 0 0120.5 15M20.5 15A9 9 0 013.5 9"/></svg>',
+chevron: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
+camera:  '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+car:     '<svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h1l2-4h12l2 4h1a2 2 0 012 2v6a2 2 0 01-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>',
+pin:     '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'
+};
+
+function el(tag, attrs, children) {
+var node = document.createElement(tag);
+if (attrs) Object.keys(attrs).forEach(function(k){
+if (k==="class") node.className=attrs[k];
+else if (k==="style") node.style.cssText=attrs[k];
+else node.setAttribute(k,attrs[k]);
+});
+if (children) {
+if (typeof children==="string") node.innerHTML=children;
+else if (Array.isArray(children)) children.forEach(function(c){if(c)node.appendChild(c);});
+else node.appendChild(children);
+}
+return node;
+}
+
+function div(cls, html) { var d=document.createElement("div"); d.className=cls; if(html)d.innerHTML=html; return d; }
+function span(cls, html) { var s=document.createElement("span"); s.className=cls; s.innerHTML=html; return s; }
+
+// ─── SHEET ───────────────────────────────────────────────────────
+function showSheet(title, items) {
+var overlay = div("overlay");
+var sheet = div("sheet");
+var handle = div("shandle");
+var titleEl = div("stitle", title);
+sheet.appendChild(handle);
+sheet.appendChild(titleEl);
+
+items.forEach(function(item, i) {
+var row = div("sitem");
+var left = div("");
+left.appendChild(div("siname", item.name));
+if (item.sub) left.appendChild(div("sisub", item.sub));
+row.appendChild(left);
+if (item.checked) row.appendChild(span("sicheck", "✓"));
+row.addEventListener("click", function(){
+item.onSelect();
+document.body.removeChild(overlay);
+});
+sheet.appendChild(row);
+});
+
+overlay.appendChild(sheet);
+overlay.addEventListener("click", function(e){
+if (e.target===overlay) document.body.removeChild(overlay);
+});
+document.body.appendChild(overlay);
+}
+
+// ─── SHEET WITH SEARCH ───────────────────────────────────────────
+function showSheetWithSearch(title, items) {
+var overlay = div("overlay");
+var sheet = div("sheet");
+var handle = div("shandle");
+var titleEl = div("stitle", title);
+sheet.appendChild(handle);
+sheet.appendChild(titleEl);
+
+// Search input
+var searchWrap = div("");
+searchWrap.style.cssText = "position:sticky;top:0;background:var(--white);padding-bottom:12px;z-index:1";
+var searchInp = document.createElement("input");
+searchInp.type = "text";
+searchInp.placeholder = "Søg kunde…";
+searchInp.style.cssText = "width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font);font-size:15px;color:var(--text);outline:none";
+searchWrap.appendChild(searchInp);
+sheet.appendChild(searchWrap);
+
+var listWrap = div("");
+sheet.appendChild(listWrap);
+
+function renderList(filter) {
+listWrap.innerHTML = "";
+var filtered = filter
+? items.filter(function(i){ return i.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0; })
+: items;
+filtered.forEach(function(item) {
+var row = div("sitem");
+var left = div("");
+left.appendChild(div("siname", item.name));
+if (item.sub) left.appendChild(div("sisub", item.sub));
+row.appendChild(left);
+if (item.checked) row.appendChild(span("sicheck", "✓"));
+row.addEventListener("click", function(){
+item.onSelect();
+document.body.removeChild(overlay);
+});
+listWrap.appendChild(row);
+});
+if (filtered.length === 0) {
+listWrap.appendChild(div("", "<div style='padding:20px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Ingen resultater</div>"));
+}
+}
+
+searchInp.addEventListener("input", function(){ renderList(searchInp.value); });
+renderList("");
+setTimeout(function(){ searchInp.focus(); }, 300);
+
+overlay.appendChild(sheet);
+overlay.addEventListener("click", function(e){
+if (e.target===overlay) document.body.removeChild(overlay);
+});
+document.body.appendChild(overlay);
+}
+
+function entryIcon(e) {
+// Brug type-felt hvis det findes, ellers gæt fra beskrivelse
+var type = e.type;
+if (!type) {
+var desc = (e.description||"").toLowerCase();
+if (desc.indexOf("kørsel") >= 0 || desc.indexOf("km") >= 0) type = "drive";
+else if (desc.indexOf("avance") >= 0 || desc.indexOf("faktura") >= 0) type = "scan";
+else type = "hours";
+}
+var ico = type==="drive" ? "car" : type==="scan" ? "camera" : "clock";
+var wrap = div("ehrs");
+wrap.style.cssText = "display:flex;align-items:center;justify-content:center;min-width:36px";
+wrap.innerHTML = ICONS[ico];
+wrap.querySelector("svg").style.cssText = "width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6";
+return wrap;
+}
+
+// State for log view
+var LS = {
+date: todayStr(),
+hours: "",
+desc: "",
+rate: fmt(S.settings().defaultRate||1000),
+customer: null,
+loading: false
+};
+
+function buildLogView(container) {
+var now = new Date();
+var sums = weeklySums();
+var entries = S.entries().slice(0,6);
+var settings = S.settings();
+var customers = S.customers();
+container.innerHTML = "";
+
+// Date block
+var db = div("date-block");
+db.appendChild(div("date-day", "I dag"));
+var df = div("date-full");
+df.innerHTML = "<strong>"+DAYS[now.getDay()]+"</strong>, "+now.getDate()+". "+MONTHS[now.getMonth()]+" "+now.getFullYear();
+db.appendChild(df);
+container.appendChild(db);
+
+// Stats
+var sb = div("sbar");
+var s1 = div("stat");
+s1.appendChild(div("stat-l","I dag"));
+var sv1=div("stat-v"); sv1.innerHTML="<strong>"+fmt(sums.today)+"</strong>"; s1.appendChild(sv1);
+s1.appendChild(div("stat-u","timer"));
+var s2 = div("stat");
+s2.appendChild(div("stat-l","Denne uge"));
+s2.appendChild(div("stat-v",fmt(sums.week)));
+s2.appendChild(div("stat-u","timer"));
+var sdiv2 = div("sdiv");
+sb.appendChild(s1); sb.appendChild(sdiv2); sb.appendChild(s2);
+container.appendChild(sb);
+
+// Section label
+container.appendChild(div("slbl","<span>Registrer timer</span>"));
+
+// Card
+var card = div("card");
+
+// Customer row
+var crow1 = div("crow");
+var cf1 = div("cf");
+cf1.style.display="flex"; cf1.style.alignItems="center"; cf1.style.justifyContent="space-between"; cf1.style.cursor="pointer";
+var cf1left = div("");
+cf1left.appendChild(div("fl","Kunde"));
+if (LS.customer) {
+cf1left.appendChild(div("fv",LS.customer.name));
+var rateTxt = LS.customer.rate ? " · "+fmt(LS.customer.rate)+" kr/t" : "";
+cf1left.appendChild(div("fs","Nr. "+LS.customer.number+rateTxt));
+} else {
+var ph = div("fv ph");
+ph.textContent = customers.length===0 ? "Synkroniser kunder i Konto →" : "Vælg kunde →";
+cf1left.appendChild(ph);
+}
+var chev = div(""); chev.innerHTML=ICONS.chevron; chev.style.color="var(--muted)"; chev.style.display="flex";
+cf1.appendChild(cf1left); cf1.appendChild(chev);
+crow1.appendChild(cf1);
+crow1.addEventListener("click", function(){
+if (customers.length===0) { toast("Gå til Konto og synkroniser kunder først"); return; }
+showSheetWithSearch("Vælg kunde", customers.map(function(c){
+var sub = "Nr. "+c.number+(c.rate ? " · "+fmt(c.rate)+" kr/t" : "");
+return {
+name: c.name, sub: sub,
+checked: LS.customer && LS.customer.number===c.number,
+onSelect: function(){
+LS.customer = c;
+var s = S.settings();
+LS.rate = fmt(c.rate||s.defaultRate||1000);
+buildLogView(container);
+}
+};
+}));
+});
+card.appendChild(crow1);
+
+// Date + rate row
+var crow2 = div("crow two");
+var cf2a = div("cf"); cf2a.appendChild(div("fl","Dato"));
+var dateInp = document.createElement("input"); dateInp.type="date"; dateInp.value=LS.date; dateInp.className="fv";
+dateInp.addEventListener("input",function(){LS.date=dateInp.value;});
+cf2a.appendChild(dateInp);
+var cf2b = div("cf"); cf2b.appendChild(div("fl","Timepris (kr)"));
+var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal"; rateInp.value=LS.rate; rateInp.placeholder=String(settings.defaultRate||1000); rateInp.className="fv";
+rateInp.addEventListener("input",function(){LS.rate=rateInp.value; updateSubmitBtn();});
+cf2b.appendChild(rateInp);
+crow2.appendChild(cf2a); crow2.appendChild(cf2b);
+card.appendChild(crow2);
+
+// Hours
+var hsec = div("hsec");
+hsec.appendChild(div("fl","Antal timer"));
+var hoursInp = document.createElement("input"); hoursInp.type="text"; hoursInp.inputMode="decimal"; hoursInp.value=LS.hours;
+hoursInp.placeholder="Skriv antal timer, f.eks. 3,5 eller 10,5"; hoursInp.className="fv";
+hoursInp.style.marginTop="6px"; hoursInp.style.marginBottom="12px";
+hoursInp.addEventListener("input",function(){LS.hours=hoursInp.value; syncPills(); updateSubmitBtn();});
+hsec.appendChild(hoursInp);
+card.appendChild(hsec);
+
+// Description
+var crow3 = div("crow");
+var cf3 = div("cf"); cf3.style.flex="1";
+cf3.appendChild(div("fl","Beskrivelse"));
+var descTa = document.createElement("textarea"); descTa.rows=2; descTa.placeholder="Hvad arbejdede du på?"; descTa.className="fv"; descTa.style.marginTop="4px";
+descTa.value=LS.desc;
+descTa.addEventListener("input",function(){LS.desc=descTa.value; updateSubmitBtn();});
+cf3.appendChild(descTa);
+crow3.appendChild(cf3);
+card.appendChild(crow3);
+container.appendChild(card);
+
+// Submit button
+var submitBtn = document.createElement("button");
+submitBtn.className="btnp";
+function updateSubmitBtn() {
+var can = LS.customer && parseH(LS.hours) && parseH(LS.rate) && LS.desc.trim();
+submitBtn.disabled = !can || LS.loading;
+submitBtn.innerHTML = LS.loading
+? '<span class="spin"></span> Sender…'
+: ICONS.send+' Send til e-conomic';
+}
+updateSubmitBtn();
+submitBtn.addEventListener("click", async function(){
+var hours=parseH(LS.hours), rate=parseH(LS.rate);
+if (!LS.customer) return toast("Vælg en kunde");
+if (!hours) return toast("Angiv antal timer");
+if (!rate) return toast("Angiv timepris");
+if (!LS.desc.trim()) return toast("Tilføj en beskrivelse");
+LS.loading=true; updateSubmitBtn();
+try {
+var dn = await API.logHours(LS.customer.number, LS.date, LS.desc.trim(), hours, rate);
+S.addEntry({customerNumber:LS.customer.number, customerName:LS.customer.name, date:LS.date, description:LS.desc.trim(), hours:hours, hourlyRate:rate, draftNumber:dn, status:"sent", type:"hours"});
+toast("✓ "+fmt(hours)+" timer lagt på kladde #"+dn);
+LS.hours=""; LS.desc=""; LS.date=todayStr();
+} catch(e) {
+toast("Fejl: "+e.message);
+} finally {
+LS.loading=false;
+buildLogView(container);
+}
+});
+container.appendChild(submitBtn);
+
+// Recent entries
+if (entries.length>0) {
+var recWrap = div(""); recWrap.style.marginTop="28px";
+recWrap.appendChild(div("slbl","<span>Seneste registreringer</span>"));
+var elist = div("elist");
+entries.forEach(function(e){
+var entry=div("entry");
+var ebar=div("ebar "+e.status);
+var ebody=div("ebody");
+var ehrs=entryIcon(e);
+var einfo=div("einfo");
+einfo.appendChild(div("ecli",e.customerName));
+var d=new Date(e.date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit"});
+var descShort=(e.description||"").slice(0,30)+((e.description||"").length>30?"…":"");
+einfo.appendChild(div("emeta",d+" · "+descShort));
+var eright=div("eright");
+eright.appendChild(span("badge "+e.status, e.status==="sent"?"Sendt ✓":"Kladde"));
+if (e.draftNumber) eright.appendChild(span("eamt","#"+e.draftNumber));
+ebody.appendChild(ehrs); ebody.appendChild(einfo); ebody.appendChild(eright);
+entry.appendChild(ebar); entry.appendChild(ebody);
+elist.appendChild(entry);
+});
+recWrap.appendChild(elist);
+container.appendChild(recWrap);
+}
+}
+
+function buildHistoryView(container) {
+container.innerHTML = "";
+var entries = S.entries();
+
+var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Historik")); container.appendChild(vhdr);
+
+if (entries.length===0) {
+var empty=div("empty"); empty.appendChild(div("eico","🕐")); empty.appendChild(div("etxt","Ingen registreringer endnu.\nStart med at logge dine timer.")); container.appendChild(empty); return;
+}
+
+var totalH=entries.reduce(function(s,e){return s+e.hours;},0);
+var totalAmt=entries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+
+var sb=div("sbar"); sb.style.marginBottom="24px";
+var s1=div("stat"); s1.appendChild(div("stat-l","Total")); s1.innerHTML+='<div class="stat-v"><strong>'+fmt(totalH)+'</strong></div><div class="stat-u">timer</div>';
+var s2=div("stat"); s2.appendChild(div("stat-l","Faktureret")); s2.innerHTML+='<div class="stat-v" style="font-size:20px"><strong>'+totalAmt.toLocaleString("da-DK")+'</strong></div><div class="stat-u">kr ex. moms</div>';
+var sdiv2=div("sdiv");
+sb.appendChild(s1); sb.appendChild(sdiv2); sb.appendChild(s2);
+container.appendChild(sb);
+
+// Group by date
+var groups={};
+entries.forEach(function(e){if(!groups[e.date])groups[e.date]=[];groups[e.date].push(e);});
+var sorted=Object.keys(groups).sort(function(a,b){return b.localeCompare(a);});
+
+sorted.forEach(function(date){
+var dayEntries=groups[date];
+var dayH=dayEntries.reduce(function(s,e){return s+e.hours;},0);
+var wrap=div(""); wrap.style.marginBottom="20px";
+wrap.appendChild(div("slbl","<span>"+dateLabel(date)+"</span><span>"+fmt(dayH)+" t</span>"));
+var elist=div("elist");
+dayEntries.forEach(function(e){
+var entry=div("entry");
+var ebar=div("ebar "+e.status);
+var ebody=div("ebody");
+var ehrs=entryIcon(e);
+var einfo=div("einfo");
+einfo.appendChild(div("ecli",e.customerName));
+var descShort=(e.description||"").slice(0,38)+((e.description||"").length>38?"…":"");
+einfo.appendChild(div("emeta",descShort));
+var eright=div("eright");
+eright.appendChild(span("badge "+e.status,e.status==="sent"?"Sendt":"Kladde"));
+eright.appendChild(span("eamt",(e.hours*e.hourlyRate).toLocaleString("da-DK")+" kr"));
+ebody.appendChild(ehrs); ebody.appendChild(einfo); ebody.appendChild(eright);
+entry.appendChild(ebar); entry.appendChild(ebody);
+elist.appendChild(entry);
+});
+wrap.appendChild(elist);
+container.appendChild(wrap);
+});
+}
+
+// Drafts state
+var DR = { drafts:null, lines:{}, expanded:null, loading:true, error:null };
+
+function buildInvoicesView(container) {
+container.innerHTML="";
+var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Fakturakladder")); container.appendChild(vhdr);
+
+if (DR.loading) {
+container.appendChild(div("empty",'<div class="spin-dark"></div><div class="etxt">Henter kladder fra e-conomic…</div>'));
+return;
+}
+if (DR.error) {
+container.appendChild(div("empty",'<div class="etxt">'+DR.error+'</div>'));
+var btn=document.createElement("button"); btn.className="btns"; btn.innerHTML=ICONS.refresh+" Prøv igen";
+btn.addEventListener("click",loadDrafts); container.appendChild(btn); return;
+}
+if (!DR.drafts || DR.drafts.length===0) {
+container.appendChild(div("empty",'<div class="eico">📄</div><div class="etxt">Ingen åbne kladder endnu.</div>'));
+var btn2=document.createElement("button"); btn2.className="btns"; btn2.innerHTML=ICONS.refresh+" Hent fra e-conomic";
+btn2.addEventListener("click",loadDrafts); container.appendChild(btn2); return;
+}
+
+container.appendChild(div("slbl","<span>"+DR.drafts.length+" åbne kladder</span>"));
+
+DR.drafts.forEach(function(d){
+var dn=d.draftInvoiceNumber;
+var isOpen=DR.expanded===dn;
+var name=(d.recipient&&d.recipient.name)||((d.customer&&d.customer.name))||"Ukendt kunde";
+var icard=div("icard");
+
+// Header
+var ihdr=div("ihdr");
+var ileft=div("");
+ileft.appendChild(div("icli",name));
+ileft.appendChild(div("inum","Kladde #"+dn+" · "+d.date));
+var iright=div("iright");
+var itotWrap=div(""); itotWrap.style.textAlign="right";
+itotWrap.appendChild(div("itot",(d.netAmount||0).toLocaleString("da-DK")+" kr"));
+itotWrap.appendChild(div("isub","ex. moms"));
+var ichev=div("ichev"+(isOpen?" open":"")); ichev.innerHTML=ICONS.chevron;
+iright.appendChild(itotWrap); iright.appendChild(ichev);
+ihdr.appendChild(ileft); ihdr.appendChild(iright);
+ihdr.addEventListener("click",function(){
+DR.expanded = isOpen ? null : dn;
+if (!DR.lines[dn]) {
+DR.lines[dn]=null;
+var vw=document.getElementById("vwrap");
+buildInvoicesView(vw);
+API.getDraftLines(dn).then(function(ls){DR.lines[dn]=ls; buildInvoicesView(vw);}).catch(function(){DR.lines[dn]=[]; buildInvoicesView(vw);});
+} else {
+buildInvoicesView(document.getElementById("vwrap"));
+}
+});
+icard.appendChild(ihdr);
+
+// Lines
+if (isOpen) {
+var lines=DR.lines[dn];
+if (lines===null||lines===undefined) {
+icard.appendChild(div("","<div style='padding:14px 16px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Indlæser linjer…</div>"));
+} else if (lines.length===0) {
+icard.appendChild(div("","<div style='padding:14px 16px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Ingen linjer</div>"));
+} else {
+lines.forEach(function(l){
+var iline=div("iline");
+iline.appendChild(span("iln","#"+l.lineNumber));
+iline.appendChild(span("ild",l.description||""));
+iline.appendChild(span("ilh",fmt(l.quantity||0)+"t"));
+iline.appendChild(span("ila",((l.quantity||0)*(l.unitNetPrice||0)).toLocaleString("da-DK")+" kr"));
+icard.appendChild(iline);
+});
+var iftr=div("iftr");
+iftr.appendChild(div("itlbl","Total ex. moms"));
+iftr.appendChild(div("itval",(d.netAmount||0).toLocaleString("da-DK")+" kr"));
+icard.appendChild(iftr);
+}
+}
+container.appendChild(icard);
+});
+
+var refreshBtn=document.createElement("button"); refreshBtn.className="btns"; refreshBtn.innerHTML=ICONS.refresh+" Opdater fra e-conomic";
+refreshBtn.addEventListener("click",loadDrafts);
+container.appendChild(refreshBtn);
+}
+
+async function loadDrafts() {
+DR.loading=true; DR.error=null;
+var vw=document.getElementById("vwrap");
+buildInvoicesView(vw);
+try {
+DR.drafts=await API.getAllDrafts();
+} catch(e) {
+DR.error=e.message;
+} finally {
+DR.loading=false;
+buildInvoicesView(vw);
+}
+}
+
+function buildSettingsView(container) {
+container.innerHTML="";
+var s=S.settings(), customers=S.customers(), cfg=window.EC||{};
+var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Konto")); container.appendChild(vhdr);
+
+// Helper: sgrp wrapper
+function sgrp(rows) {
+var g=div("sgrp");
+rows.forEach(function(r){g.appendChild(r);});
+return g;
+}
+function srow(labelHTML, right) {
+var r=div("srow"); r.innerHTML=labelHTML; r.appendChild(right); return r;
+}
+
+// Profile
+container.appendChild(div("slbl","<span>Profil</span>"));
+var nameInp=document.createElement("input"); nameInp.className="srinp"; nameInp.type="text"; nameInp.value=s.userName||""; nameInp.placeholder="Dit navn"; nameInp.style.width="180px";
+nameInp.addEventListener("input",function(){s.userName=nameInp.value; S.setSettings(s);});
+var initInp=document.createElement("input"); initInp.className="srinp"; initInp.type="text"; initInp.maxLength=3; initInp.value=s.userInitials||""; initInp.placeholder="MH"; initInp.style.width="60px";
+initInp.addEventListener("input",function(){s.userInitials=initInp.value.toUpperCase(); S.setSettings(s);});
+var r1=div("srow"); r1.appendChild(div("","<div class='srlbl'>Navn</div>")); r1.appendChild(nameInp);
+var r2=div("srow"); r2.appendChild(div("","<div class='srlbl'>Initialer</div>")); r2.appendChild(initInp);
+container.appendChild(sgrp([r1,r2]));
+
+// Default rate
+container.appendChild(div("slbl","<span>Standard timepris</span>"));
+var rateInp=document.createElement("input"); rateInp.className="srinp"; rateInp.type="text"; rateInp.inputMode="decimal"; rateInp.value=s.defaultRate?fmt(s.defaultRate):""; rateInp.placeholder="1000"; rateInp.style.width="70px";
+rateInp.addEventListener("input",function(){var v=parseFloat(rateInp.value.replace(",",".")); if(!isNaN(v)){s.defaultRate=v; S.setSettings(s);}});
+var rateRight=div(""); rateRight.style.cssText="display:flex;align-items:center;gap:4px";
+rateRight.appendChild(rateInp); var krSpan=document.createElement("span"); krSpan.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; krSpan.textContent="kr/t"; rateRight.appendChild(krSpan);
+var r3=div("srow");
+var r3left=div(""); r3left.appendChild(div("srlbl","Standardpris")); r3left.appendChild(div("srsub","Bruges hvis kunden ikke har specifik pris")); r3.appendChild(r3left); r3.appendChild(rateRight);
+container.appendChild(sgrp([r3]));
+
+// Per-customer rates
+if (customers.length>0) {
+var syncLbl=div("slbl"); syncLbl.innerHTML="<span>Timepris per kunde</span>";
+var syncSmall=document.createElement("button"); syncSmall.style.cssText="background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase"; syncSmall.textContent="↻ SYNC";
+syncSmall.addEventListener("click",function(){doSync(syncSmall);});
+syncLbl.appendChild(syncSmall);
+container.appendChild(syncLbl);
+var crows=customers.map(function(c){
+var cr=div("srow"); cr.style.flexWrap="nowrap";
+var cl=div(""); cl.style.cssText="min-width:0;flex:1;margin-right:12px";
+cl.appendChild(div("srlbl",c.name)); cl.appendChild(div("srsub","Nr. "+c.number));
+var cright=div(""); cright.style.cssText="display:flex;align-items:center;gap:4px;flex-shrink:0";
+var ci=document.createElement("input"); ci.className="srinp"; ci.type="text"; ci.inputMode="decimal"; ci.value=c.rate?fmt(c.rate):""; ci.placeholder=s.defaultRate?fmt(s.defaultRate):"Standard"; ci.style.width="70px";
+ci.addEventListener("input",function(){var v=parseFloat(ci.value.replace(",",".")); S.setCustomerRate(c.number,isNaN(v)?null:v);});
+var ks=document.createElement("span"); ks.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; ks.textContent="kr/t";
+cright.appendChild(ci); cright.appendChild(ks);
+cr.appendChild(cl); cr.appendChild(cright);
+return cr;
+});
+container.appendChild(sgrp(crows));
+}
+
+// e-conomic connection
+// Produkt nummer indstilling
+container.appendChild(div("slbl","<span>Faktura indstillinger</span>"));
+var prow = div("srow");
+var prowl = div(""); prowl.appendChild(div("srlbl","Produktnummer")); prowl.appendChild(div("srsub","Varenr. på fakturalinjer (fx 2 = Konsulentydelse)"));
+prow.appendChild(prowl);
+var pinp = document.createElement("input"); pinp.className="srinp"; pinp.type="text"; pinp.inputMode="numeric"; pinp.value=s.productNumber||"2"; pinp.style.width="60px";
+pinp.addEventListener("input",function(){ S.setSettings({productNumber:pinp.value}); });
+prow.appendChild(pinp);
+container.appendChild(sgrp([prow]));
+
+container.appendChild(div("slbl","<span>e-conomic forbindelse</span>"));
+var tok1=div("srow");
+var tok1l=div(""); tok1l.appendChild(div("srlbl","App Secret Token")); tok1l.appendChild(div("srsub","ECONOMIC_APP_SECRET i Vercel")); tok1.appendChild(tok1l);
+tok1.appendChild(span("srval", cfg.appSecret ? "✓ Sat" : "✗ Mangler"));
+var tok2=div("srow");
+var tok2l=div(""); tok2l.appendChild(div("srlbl","Agreement Grant Token")); tok2l.appendChild(div("srsub","ECONOMIC_AGREEMENT_TOKEN i Vercel")); tok2.appendChild(tok2l);
+tok2.appendChild(span("srval", cfg.agreementToken ? "✓ Sat" : "✗ Mangler"));
+container.appendChild(sgrp([tok1,tok2]));
+
+// Sync button
+var syncBtn=document.createElement("button"); syncBtn.className="btns"; syncBtn.innerHTML=ICONS.refresh+" Synkroniser kunder fra e-conomic";
+syncBtn.addEventListener("click",function(){doSync(syncBtn);});
+container.appendChild(syncBtn);
+
+// Footer
+  // Upload alt data til cloud
+  var uploadBtn=document.createElement("button"); uploadBtn.className="btns"; uploadBtn.innerHTML=ICONS.refresh+" Upload alt data til cloud";
+  uploadBtn.addEventListener("click", async function(){
+    uploadBtn.innerHTML="Uploader…"; uploadBtn.disabled=true;
+    try {
+      var key = await API.getAppKey();
+      var res = await fetch("/api/store", {
+        method: "POST",
+        headers: {"Content-Type":"application/json","x-app-key":key||""},
+        body: JSON.stringify({
+          entries: S.entries(),
+          customers: S.customers(),
+          settings: S.settings()
+        })
+      });
+      var data = await res.json();
+      if (data.ok) toast("✓ Alt data uploadet til cloud");
+      else toast("Fejl: "+JSON.stringify(data));
+    } catch(e) {
+      toast("Fejl: "+e.message);
+    } finally {
+      uploadBtn.innerHTML=ICONS.refresh+" Upload alt data til cloud";
+      uploadBtn.disabled=false;
+    }
+  });
+  container.appendChild(uploadBtn);
+
+var footer=div(""); footer.style.cssText="margin-top:40px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--subtle);letter-spacing:.1em";
+footer.textContent="TIMELOG v1.0 · e-CONOMIC INTEGRATION";
+container.appendChild(footer);
+}
+
+async function doSync(btn) {
+var origHTML=btn.innerHTML; btn.innerHTML="Synkroniserer…"; btn.disabled=true;
+try {
+var cs=await API.getCustomers(); S.mergeCustomers(cs);
+toast("✓ "+cs.length+" kunder synkroniseret");
+rerender();
+} catch(e) {
+toast("Fejl: "+e.message);
+btn.innerHTML=origHTML; btn.disabled=false;
+}
+}
+
+
+// ─── SCAN VIEW ───────────────────────────────────────────────────
+var SS = {
+imageData: null,
+imagePreview: null,
+scanning: false,
+result: null,  // {supplier, date, amount, description}
+avancePct: 0,
+customer: null
+};
+
+function buildScanView(container) {
+container.innerHTML = "";
+var customers = S.customers();
+
+var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Scan faktura")); container.appendChild(vhdr);
+
+// AI thinking state
+if (SS.scanning) {
+var think=div("ai-thinking");
+think.appendChild(div("spin-dark",""));
+think.appendChild(div("ai-lbl","AI ANALYSERER FAKTURA…"));
+container.appendChild(think);
+return;
+}
+
+// Photo upload area
+var dropLbl = div("slbl","<span>Foto af faktura</span>");
+container.appendChild(dropLbl);
+
+var drop = div("scan-drop" + (SS.imagePreview ? " has-img" : ""));
+if (SS.imagePreview) {
+var img = document.createElement("img");
+img.src = SS.imagePreview;
+drop.appendChild(img);
+} else {
+drop.innerHTML = ICONS.camera + '<div style="font-size:14px;color:var(--muted);margin-top:4px">Tryk for at tage foto eller vælg billede</div><div style="font-family:var(--mono);font-size:10px;color:var(--subtle);margin-top:6px;letter-spacing:.08em">JPG · PNG · HEIC</div>';
+}
+
+var fileInput = document.createElement("input");
+fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.capture = "environment";
+fileInput.style.display = "none";
+fileInput.addEventListener("change", function() {
+var file = fileInput.files[0];
+if (!file) return;
+var reader = new FileReader();
+reader.onload = function(e) {
+SS.imagePreview = e.target.result;
+SS.imageData = e.target.result.split(",")[1];
+SS.result = null;
+buildScanView(container);
+};
+reader.readAsDataURL(file);
+});
+drop.appendChild(fileInput);
+drop.addEventListener("click", function() { fileInput.click(); });
+container.appendChild(drop);
+
+// Analyse button
+if (SS.imageData && !SS.result) {
+var analyseBtn = document.createElement("button");
+analyseBtn.className = "btnp";
+analyseBtn.innerHTML = ICONS.camera + " Analysér faktura med AI";
+analyseBtn.addEventListener("click", function() { analyseFaktura(container); });
+container.appendChild(analyseBtn);
+}
+
+// Results
+if (SS.result) {
+var r = SS.result;
+
+container.appendChild(div("slbl","<span>Udlæste data — ret hvis nødvendigt</span>"));
+var preview = div("scan-preview");
+
+// Supplier
+var sr1=div("scan-row"); sr1.style.flexDirection="column"; sr1.style.alignItems="flex-start";
+sr1.appendChild(div("scan-lbl","Leverandør"));
+var supInp=document.createElement("input"); supInp.className="scan-edit"; supInp.value=r.supplier||""; supInp.placeholder="Leverandørnavn";
+supInp.addEventListener("input",function(){r.supplier=supInp.value;});
+sr1.appendChild(supInp); preview.appendChild(sr1);
+
+// Date
+var sr2=div("scan-row");
+var sr2l=div(""); sr2l.appendChild(div("scan-lbl","Dato")); sr2.appendChild(sr2l);
+var dateInp=document.createElement("input"); dateInp.type="date"; dateInp.className="scan-edit"; dateInp.value=r.date||todayStr(); dateInp.style.width="140px";
+dateInp.addEventListener("input",function(){r.date=dateInp.value;});
+sr2.appendChild(dateInp); preview.appendChild(sr2);
+
+// Amount
+var sr3=div("scan-row");
+var sr3l=div(""); sr3l.appendChild(div("scan-lbl","Beløb ex. moms")); sr3.appendChild(sr3l);
+var amtWrap=div(""); amtWrap.style.cssText="display:flex;align-items:center;gap:4px";
+var amtInp=document.createElement("input"); amtInp.type="text"; amtInp.inputMode="decimal"; amtInp.className="scan-edit"; amtInp.value=r.amount||""; amtInp.style.width="100px"; amtInp.style.textAlign="right";
+amtInp.addEventListener("input",function(){r.amount=amtInp.value; updateAvance();});
+var krSpan=document.createElement("span"); krSpan.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted);flex-shrink:0"; krSpan.textContent="kr";
+amtWrap.appendChild(amtInp); amtWrap.appendChild(krSpan); sr3.appendChild(amtWrap); preview.appendChild(sr3);
+
+// Description
+var sr4=div("scan-row"); sr4.style.flexDirection="column"; sr4.style.alignItems="flex-start";
+sr4.appendChild(div("scan-lbl","Beskrivelse"));
+var descInp=document.createElement("input"); descInp.className="scan-edit"; descInp.value=r.description||""; descInp.placeholder="Beskrivelse til fakturalinjen";
+descInp.addEventListener("input",function(){r.description=descInp.value;});
+sr4.appendChild(descInp); preview.appendChild(sr4);
+
+container.appendChild(preview);
+
+// Avance section
+container.appendChild(div("slbl","<span>Avance / påslag</span>"));
+var avanceCard = div("card"); avanceCard.style.marginBottom="16px";
+var avanceInner = div(""); avanceInner.style.padding="14px 16px";
+avanceInner.appendChild(div("fl","Påslag %"));
+
+var pctPills = div("pct-pills");
+[0,5,10,15,20,25,30].forEach(function(p) {
+var pill = div("pct-pill" + (SS.avancePct===p?" on":""), p+"%");
+pill.addEventListener("click", function() {
+SS.avancePct = p;
+buildScanView(container);
+});
+pctPills.appendChild(pill);
+});
+avanceInner.appendChild(pctPills);
+
+// Custom pct input
+var customWrap = div(""); customWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:10px";
+var customLbl = document.createElement("span"); customLbl.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customLbl.textContent="Andet:";
+var customInp = document.createElement("input"); customInp.type="text"; customInp.inputMode="decimal"; customInp.placeholder="eks. 22"; customInp.style.cssText="width:60px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px;text-align:center";
+customInp.addEventListener("input",function(){
+var v=parseFloat(customInp.value.replace(",","."));
+if(!isNaN(v)&&v>=0){SS.avancePct=v; buildScanView(container);}
+});
+var customSuffix = document.createElement("span"); customSuffix.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSuffix.textContent="%";
+customWrap.appendChild(customLbl); customWrap.appendChild(customInp); customWrap.appendChild(customSuffix);
+avanceInner.appendChild(customWrap);
+avanceCard.appendChild(avanceInner);
+container.appendChild(avanceCard);
+
+// Avance summary box
+var origAmt = parseFloat(String(r.amount||"0").replace(",",".")) || 0;
+var avanceAmt = origAmt * SS.avancePct / 100;
+var totalAmt = origAmt + avanceAmt;
+
+var avBox = div("avance-row");
+var avLeft = div("");
+avLeft.appendChild(div("avance-left", "Originalbeløb: "+origAmt.toLocaleString("da-DK")+" kr"));
+if (SS.avancePct > 0) {
+avLeft.appendChild(div("avance-sub", "+"+SS.avancePct+"% = +"+avanceAmt.toLocaleString("da-DK")+" kr"));
+}
+avBox.appendChild(avLeft);
+var avRight = div("");
+avRight.appendChild(div("avance-total", totalAmt.toLocaleString("da-DK")+" kr"));
+avRight.appendChild(div("avance-sub", "til kunden"));
+avBox.appendChild(avRight);
+container.appendChild(avBox);
+
+// Customer picker
+container.appendChild(div("slbl","<span>Send til kunde</span>"));
+var ccard = div("card"); ccard.style.marginBottom="4px";
+var crow = div("crow"); crow.style.cursor="pointer";
+var cf = div("cf"); cf.style.cssText="display:flex;align-items:center;justify-content:space-between";
+var cfl = div("");
+cfl.appendChild(div("fl","Kunde"));
+if (SS.customer) {
+cfl.appendChild(div("fv", SS.customer.name));
+cfl.appendChild(div("fs","Nr. "+SS.customer.number));
+} else {
+var cph=div("fv ph"); cph.textContent="Vælg kunde →"; cfl.appendChild(cph);
+}
+var cchev=div(""); cchev.innerHTML=ICONS.chevron; cchev.style.color="var(--muted)"; cchev.style.display="flex";
+cf.appendChild(cfl); cf.appendChild(cchev); crow.appendChild(cf); ccard.appendChild(crow);
+crow.addEventListener("click",function(){
+if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
+showSheetWithSearch("Vælg kunde",customers.map(function(c){
+return {name:c.name,sub:"Nr. "+c.number,checked:SS.customer&&SS.customer.number===c.number,onSelect:function(){SS.customer=c;buildScanView(container);}};
+}));
+});
+container.appendChild(ccard);
+
+// Send button
+var sendBtn = document.createElement("button");
+sendBtn.className = "btnp";
+sendBtn.style.marginTop = "16px";
+var canSend = SS.customer && r.amount && r.description;
+sendBtn.disabled = !canSend;
+sendBtn.innerHTML = ICONS.send + " Send til e-conomic";
+sendBtn.addEventListener("click", function() { sendScanToEconomic(container, totalAmt); });
+container.appendChild(sendBtn);
+
+// Reset button
+var resetBtn = document.createElement("button");
+resetBtn.className = "btns";
+resetBtn.textContent = "Scan ny faktura";
+resetBtn.addEventListener("click", function() {
+SS.imageData=null; SS.imagePreview=null; SS.result=null; SS.avancePct=0; SS.customer=null;
+buildScanView(container);
+});
+container.appendChild(resetBtn);
+}
+
+function updateAvance() {
+// just rebuild to refresh totals
+buildScanView(container);
+}
+}
+
+async function compressImage(base64data) {
+return new Promise(function(resolve) {
+var img = new Image();
+img.onload = function() {
+var canvas = document.createElement("canvas");
+// Max 1400px - god balance mellem læsbarhed og filstørrelse
+var MAX_DIM = 1400;
+var w = img.width, h = img.height;
+if (w > h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+else { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+canvas.width = w; canvas.height = h;
+var ctx = canvas.getContext("2d");
+ctx.fillStyle = "#ffffff";
+ctx.fillRect(0, 0, w, h);
+ctx.drawImage(img, 0, 0, w, h);
+// Mål: 200-800KB - læsbart men ikke for stort
+var quality = 0.82;
+var result = canvas.toDataURL("image/jpeg", quality);
+while (result.length > 800 * 1024 * 1.37 && quality > 0.4) {
+quality -= 0.05;
+result = canvas.toDataURL("image/jpeg", quality);
+}
+var kb = Math.round(result.length / 1024 * 0.75);
+console.log("Billede komprimeret til ~" + kb + "KB (kvalitet: " + Math.round(quality*100) + "%)");
+resolve(result.split(",")[1]);
+};
+img.src = "data:image/jpeg;base64," + base64data;
+});
+}
+
+async function analyseFaktura(container) {
+SS.scanning = true;
+buildScanView(container);
+try {
+// Komprimer billedet før upload
+var compressed = await compressImage(SS.imageData, 1500);
+var key = await API.getAppKey();
+var res = await fetch("/api/scan", {
+method: "POST",
+headers: {"Content-Type":"application/json", "x-app-key": key||""},
+body: JSON.stringify({imageData: compressed})
+});
+if (!res.ok) throw new Error("HTTP "+res.status);
+var data = await res.json();
+SS.result = data;
+SS.avancePct = 20; // default 20%
+} catch(e) {
+toast("Fejl ved analyse: "+e.message);
+} finally {
+SS.scanning = false;
+buildScanView(container);
+}
+}
+
+async function sendScanToEconomic(container, totalAmt) {
+var r = SS.result;
+var btn = container.querySelector(".btnp");
+if (btn) { btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sender…'; }
+try {
+var desc = r.description+(r.supplier?" ("+r.supplier+")":"")+(SS.avancePct>0?" +"+SS.avancePct+"% avance":"");
+var dn = await API.logHours(SS.customer.number, r.date||todayStr(), desc, 1, totalAmt);
+S.addEntry({
+customerNumber:SS.customer.number, customerName:SS.customer.name,
+date:r.date||todayStr(), description:desc, hours:1, hourlyRate:totalAmt,
+draftNumber:dn, status:"sent", type:"scan"
+});
+toast("✓ Faktura sendt til kladde #"+dn);
+SS.imageData=null; SS.imagePreview=null; SS.result=null; SS.avancePct=0; SS.customer=null;
+buildScanView(container);
+} catch(e) {
+toast("Fejl: "+e.message);
+if (btn) { btn.disabled=false; btn.innerHTML=ICONS.send+" Send til e-conomic"; }
+}
+}
+
+
+// ─── DRIVE VIEW ──────────────────────────────────────────────────
+var DS = {
+fromAddress: "",
+toAddress: "",
+customer: null,
+retur: true,
+sats: 3.79,
+distanceKm: null,
+calculating: false,
+date: todayStr(),
+note: ""
+};
+
+function buildDriveView(container) {
+container.innerHTML = "";
+var customers = S.customers();
+
+var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Kørsel")); container.appendChild(vhdr);
+
+// Fra adresse
+container.appendChild(div("slbl","<span>Rute</span>"));
+var routeCard = div("drive-card");
+
+// Fra
+var fromRow = div("drive-row");
+var fromIcon = div("drive-icon"); fromIcon.innerHTML = ICONS.pin; fromRow.appendChild(fromIcon);
+var fromContent = div("drive-content");
+fromContent.appendChild(div("drive-lbl","Fra"));
+var fromInp = document.createElement("input");
+fromInp.className = "drive-inp"; fromInp.placeholder = "Din adresse"; fromInp.value = DS.fromAddress;
+fromInp.setAttribute("autocomplete", "street-address");
+
+// Adresseforslag via autocomplete
+var suggestBox = div(""); 
+suggestBox.style.cssText = "background:var(--white);border:1px solid var(--border);border-radius:8px;overflow:hidden;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1);margin-bottom:8px";
+
+var _addrTimer;
+fromInp.addEventListener("input", function(){
+DS.fromAddress = fromInp.value;
+DS.distanceKm = null;
+clearTimeout(_addrTimer);
+var q = fromInp.value.trim();
+if (q.length < 3) { suggestBox.style.display="none"; return; }
+_addrTimer = setTimeout(async function(){
+try {
+var akey = await API.getAppKey();
+var res = await fetch("/api/autocomplete?q="+encodeURIComponent(q), {headers:{"x-app-key":akey||""}});
+var text = await res.text();
+var data;
+try { data = JSON.parse(text); } catch(e) { console.warn("Geocode suggest ikke JSON:", text.slice(0,100)); suggestBox.style.display="none"; return; }
+var suggestions = data.suggestions || [];
+suggestBox.innerHTML = "";
+if (suggestions.length === 0) { suggestBox.style.display="none"; return; }
+suggestions.slice(0,5).forEach(function(s) {
+var row = div("sitem"); row.style.cssText="padding:11px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)";
+row.textContent = s;
+row.addEventListener("mousedown", function(e){ e.preventDefault(); });
+row.addEventListener("click", function(){
+DS.fromAddress = s;
+fromInp.value = s;
+suggestBox.style.display = "none";
+});
+suggestBox.appendChild(row);
+});
+suggestBox.style.display = "block";
+} catch(e) { console.warn("Suggest fejl:", e.message); suggestBox.style.display="none"; }
+}, 400);
+});
+fromInp.addEventListener("blur", function(){ setTimeout(function(){ suggestBox.style.display="none"; }, 200); });
+fromContent.appendChild(fromInp);
+fromRow.appendChild(fromContent);
+var locBtn = document.createElement("button");
+locBtn.className = "locate-btn"; locBtn.textContent = "📍 GPS";
+locBtn.addEventListener("click", function(){ getMyLocation(fromInp, container); });
+fromRow.appendChild(locBtn);
+routeCard.appendChild(fromRow);
+suggestBox.style.cssText = "border-top:1px solid var(--border);overflow:hidden;display:none;border-radius:0";
+routeCard.appendChild(suggestBox);
+
+// Divider med pil
+var divRow = div(""); divRow.style.cssText = "padding:6px 16px;font-size:18px;color:var(--muted);border-bottom:1px solid var(--border)";
+divRow.textContent = "↓";
+routeCard.appendChild(divRow);
+
+// Til — vælg kunde
+var toRow = div("drive-row"); toRow.style.cursor = "pointer";
+var toIcon = div("drive-icon"); toIcon.innerHTML = ICONS.pin;
+toIcon.style.background = "var(--green-bg)";
+toIcon.querySelector("svg").style.stroke = "var(--green)";
+toRow.appendChild(toIcon);
+var toContent = div("drive-content");
+toContent.appendChild(div("drive-lbl","Til — vælg kunde"));
+if (DS.customer) {
+toContent.appendChild(div("drive-val", DS.customer.name));
+} else {
+var toPh = div("drive-val ph"); toPh.textContent = "Vælg kunde →"; toContent.appendChild(toPh);
+}
+var toChev = div(""); toChev.innerHTML = ICONS.chevron; toChev.style.cssText = "color:var(--muted);display:flex;flex-shrink:0";
+toRow.appendChild(toContent); toRow.appendChild(toChev);
+toRow.addEventListener("click", function(){
+if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
+showSheetWithSearch("Vælg destination", customers.map(function(c){
+return {
+name: c.name,
+sub: c.address || "Ingen adresse — skriv manuelt nedenunder",
+checked: DS.customer && DS.customer.number === c.number,
+onSelect: function(){
+DS.customer = c;
+DS.toAddress = c.address || "";
+DS.distanceKm = null;
+buildDriveView(container);
+}
+};
+}));
+});
+routeCard.appendChild(toRow);
+
+// Til-adresse felt — altid redigerbart
+var toAddrRow = div("drive-row");
+var toAddrIcon = div("drive-icon"); toAddrIcon.innerHTML = ICONS.pin;
+toAddrIcon.style.background = "var(--bg)"; toAddrIcon.style.border = "1px solid var(--border)";
+toAddrIcon.querySelector("svg").style.stroke = "var(--muted)";
+toAddrRow.appendChild(toAddrIcon);
+var toAddrContent = div("drive-content");
+toAddrContent.appendChild(div("drive-lbl","Til-adresse"));
+var toAddrInp = document.createElement("input");
+toAddrInp.className = "drive-inp";
+toAddrInp.placeholder = "Skriv eller ret destinationsadresse";
+toAddrInp.value = DS.toAddress;
+toAddrInp.addEventListener("input", function(){
+DS.toAddress = toAddrInp.value;
+DS.distanceKm = null;
+});
+toAddrContent.appendChild(toAddrInp);
+toAddrRow.appendChild(toAddrContent);
+routeCard.appendChild(toAddrRow);
+container.appendChild(routeCard);
+
+// Retur toggle
+var returRow = div("retur-row");
+returRow.addEventListener("click", function(){
+DS.retur = !DS.retur;
+if (DS.distanceKm) updateRouteBox();
+buildDriveView(container);
+});
+var returLeft = div("");
+returLeft.appendChild(div("retur-lbl","Tur/retur"));
+var returSub = div(""); returSub.style.cssText="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px";
+returSub.textContent = DS.distanceKm ? fmt(DS.retur ? DS.distanceKm*2 : DS.distanceKm)+" km i alt" : "Dobbelt afstand";
+returLeft.appendChild(returSub);
+var tog = div("toggle"+(DS.retur?" on":""));
+tog.appendChild(div("toggle-dot",""));
+returRow.appendChild(returLeft); returRow.appendChild(tog);
+container.appendChild(returRow);
+
+// Sats
+container.appendChild(div("slbl","<span>Kilometersats</span>"));
+var satsCard = div("card"); satsCard.style.marginBottom="16px";
+var satsInner = div(""); satsInner.style.padding="13px 16px";
+satsInner.appendChild(div("fl","Vælg sats"));
+var satsPills = div("sats-pills");
+var isCustomSats = DS.sats !== 3.79;
+
+// Statens sats pill
+var statsPill = div("sats-pill"+(DS.sats===3.79?" on":""), "Statens sats 3,79 kr/km");
+statsPill.addEventListener("click", function(){
+DS.sats = 3.79;
+buildDriveView(container);
+});
+satsPills.appendChild(statsPill);
+
+// Manuel sats pill + input kombineret
+var customSatsWrap = div(""); customSatsWrap.style.cssText="display:flex;align-items:center;gap:0;margin-top:8px";
+var customPill = div("sats-pill"+(isCustomSats?" on":""));
+customPill.style.cssText += ";display:flex;align-items:center;gap:4px;padding:6px 10px";
+var customLblSpan = document.createElement("span"); customLblSpan.textContent="Manuel:"; customLblSpan.style.cssText="font-size:11px;white-space:nowrap";
+var customSatsInp = document.createElement("input");
+customSatsInp.type="text"; customSatsInp.inputMode="decimal";
+customSatsInp.placeholder="0,00";
+customSatsInp.value = isCustomSats ? String(DS.sats).replace(".",",") : "";
+customSatsInp.style.cssText="width:52px;background:none;border:none;outline:none;font-family:var(--mono);font-size:11px;text-align:center;color:inherit;padding:0";
+var customSuffix = document.createElement("span"); customSuffix.textContent="kr/km"; customSuffix.style.cssText="font-size:11px;white-space:nowrap";
+
+customSatsInp.addEventListener("focus", function(){
+// Markér som aktiv
+customPill.className = "sats-pill on";
+statsPill.className = "sats-pill";
+});
+customSatsInp.addEventListener("input", function(){
+var v = parseFloat(customSatsInp.value.replace(",","."));
+if (!isNaN(v) && v > 0) DS.sats = v;
+});
+customSatsInp.addEventListener("blur", function(){
+var v = parseFloat(customSatsInp.value.replace(",","."));
+if (!isNaN(v) && v > 0) {
+DS.sats = v;
+} else {
+// Ugyldigt input — tilbage til statens sats
+DS.sats = 3.79;
+buildDriveView(container);
+}
+});
+
+customPill.appendChild(customLblSpan);
+customPill.appendChild(customSatsInp);
+customPill.appendChild(customSuffix);
+customPill.addEventListener("click", function(){ customSatsInp.focus(); });
+satsPills.appendChild(customPill);
+satsInner.appendChild(satsPills);
+satsCard.appendChild(satsInner); container.appendChild(satsCard);
+
+// Route result box
+var routeBoxWrap = div("route-box-wrap");
+container.appendChild(routeBoxWrap);
+
+function updateRouteBox() {
+routeBoxWrap.innerHTML = "";
+if (!DS.distanceKm) return;
+var totalKm = DS.retur ? DS.distanceKm * 2 : DS.distanceKm;
+var totalKr = totalKm * DS.sats;
+var box = div("route-box");
+var top = div("route-top");
+var kmDiv = div("route-km"); kmDiv.innerHTML = "<strong>"+fmt(totalKm)+"</strong> km";
+var krDiv = div("route-kr"); krDiv.textContent = totalKr.toLocaleString("da-DK", {minimumFractionDigits:2, maximumFractionDigits:2})+" kr";
+top.appendChild(kmDiv); top.appendChild(krDiv);
+var detail = div("route-detail"); detail.textContent = (DS.retur?"Tur/retur · ":"Enkelttur · ")+fmt(DS.distanceKm)+" km x2 · "+DS.sats+" kr/km";
+if (!DS.retur) detail.textContent = "Enkelttur · "+fmt(DS.distanceKm)+" km · "+DS.sats+" kr/km";
+box.appendChild(top); box.appendChild(detail);
+routeBoxWrap.appendChild(box);
+}
+
+if (DS.distanceKm) updateRouteBox();
+
+// Beregn knap
+if (DS.fromAddress && DS.toAddress && !DS.distanceKm) {
+var calcBtn = document.createElement("button");
+calcBtn.className = "btnp"; calcBtn.style.marginBottom="16px";
+calcBtn.innerHTML = DS.calculating
+? '<span class="spin"></span> Beregner rute…'
+: ICONS.car+" Beregn afstand";
+calcBtn.disabled = DS.calculating;
+calcBtn.addEventListener("click", function(){ calculateDistance(container, updateRouteBox); });
+container.appendChild(calcBtn);
+}
+
+// Dato + note
+if (DS.distanceKm) {
+container.appendChild(div("slbl","<span>Detaljer</span>"));
+var detCard = div("card"); detCard.style.marginBottom="16px";
+var dateRow = div("crow two");
+var dateCf = div("cf"); dateCf.appendChild(div("fl","Dato"));
+var dateInp = document.createElement("input"); dateInp.type="date"; dateInp.value=DS.date; dateInp.className="fv";
+dateInp.addEventListener("input",function(){DS.date=dateInp.value;});
+dateCf.appendChild(dateInp);
+var noteCf = div("cf"); noteCf.appendChild(div("fl","Note"));
+var noteInp = document.createElement("input"); noteInp.type="text"; noteInp.className="fv"; noteInp.value=DS.note; noteInp.placeholder="Formål med kørsel";
+noteInp.addEventListener("input",function(){DS.note=noteInp.value;});
+noteCf.appendChild(noteInp);
+dateRow.appendChild(dateCf); dateRow.appendChild(noteCf);
+detCard.appendChild(dateRow); container.appendChild(detCard);
+
+// Send knap
+var sendBtn = document.createElement("button"); sendBtn.className="btnp";
+sendBtn.disabled = !DS.customer;
+sendBtn.innerHTML = ICONS.send+" Send til e-conomic";
+sendBtn.addEventListener("click", function(){ sendDriveToEconomic(container); });
+container.appendChild(sendBtn);
+
+// Reset
+var resetBtn = document.createElement("button"); resetBtn.className="btns";
+resetBtn.textContent = "Ny kørsel";
+resetBtn.addEventListener("click", function(){
+DS.fromAddress=""; DS.toAddress=""; DS.customer=null; DS.distanceKm=null; DS.note=""; DS.date=todayStr();
+buildDriveView(container);
+});
+container.appendChild(resetBtn);
+}
+}
+
+function getMyLocation(inp, container) {
+if (!navigator.geolocation) { toast("GPS ikke tilgængelig"); return; }
+toast("Finder din placering…");
+navigator.geolocation.getCurrentPosition(
+async function(pos) {
+try {
+var lat = pos.coords.latitude, lng = pos.coords.longitude;
+var gkey = await API.getAppKey();
+var res = await fetch("/api/geocode?lat="+lat+"&lng="+lng, {headers:{"x-app-key":gkey||""}});
+var data = await res.json();
+if (data.address) {
+DS.fromAddress = data.address;
+inp.value = data.address;
+DS.distanceKm = null;
+buildDriveView(container);
+} else {
+toast("Kunne ikke finde adresse");
+}
+} catch(e) { toast("GPS fejl: "+e.message); }
+},
+function(err) { toast("GPS afvist — skriv adressen manuelt"); }
+);
+}
+
+async function calculateDistance(container, updateFn) {
+DS.calculating = true;
+buildDriveView(container);
+try {
+var dkey = await API.getAppKey();
+console.log("Beregner afstand fra:", DS.fromAddress, "til:", DS.toAddress);
+var res = await fetch("/api/distance?from="+encodeURIComponent(DS.fromAddress)+"&to="+encodeURIComponent(DS.toAddress), {headers:{"x-app-key":dkey||""}});
+var data = await res.json();
+console.log("Distance svar:", data);
+if (data.km) {
+DS.distanceKm = data.km;
+DS.calculating = false;
+buildDriveView(container);
+} else {
+throw new Error(data.message || "Kunne ikke beregne afstand");
+}
+} catch(e) {
+DS.calculating = false;
+toast("Fejl: "+e.message);
+buildDriveView(container);
+}
+}
+
+async function sendDriveToEconomic(container) {
+var totalKm = DS.retur ? DS.distanceKm * 2 : DS.distanceKm;
+var totalKr = totalKm * DS.sats;
+var btn = container.querySelector(".btnp");
+if (btn) { btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sender…'; }
+try {
+var desc = "Kørsel "+(DS.note?DS.note+" ":"")+DS.fromAddress+" → "+DS.customer.name+(DS.retur?" (t/r)":"")+" "+fmt(totalKm)+"km";
+var dn = await API.logHours(DS.customer.number, DS.date, desc, 1, totalKr);
+S.addEntry({
+customerNumber:DS.customer.number, customerName:DS.customer.name,
+date:DS.date, description:desc, hours:1, hourlyRate:totalKr,
+draftNumber:dn, status:"sent", type:"drive"
+});
+toast("✓ "+fmt(totalKm)+"km sendt til kladde #"+dn);
+DS.fromAddress=""; DS.toAddress=""; DS.customer=null; DS.distanceKm=null; DS.note=""; DS.date=todayStr();
+buildDriveView(container);
+} catch(e) {
+toast("Fejl: "+e.message);
+if (btn) { btn.disabled=false; btn.innerHTML=ICONS.send+" Send til e-conomic"; }
+}
+}
+
+// ─── ROUTER ──────────────────────────────────────────────────────
+var VIEWS=[
+{id:"log",     label:"Timer",    icon:"clock"},
+{id:"scan",    label:"Scan",     icon:"camera"},
+{id:"drive",   label:"Kørsel",   icon:"car"},
+{id:"invoices",label:"Kladder",  icon:"file"},
+{id:"settings",label:"Konto",    icon:"user"}
+];
+var currentView="log";
+
+function rerender() {
+var vw=document.getElementById("vwrap");
+var nb=document.getElementById("navbar");
+var inner=div("view");
+
+if (currentView==="log")      buildLogView(inner);
+else if (currentView==="history")  buildHistoryView(inner);
+else if (currentView==="invoices") buildInvoicesView(inner);
+else if (currentView==="scan")     buildScanView(inner);
+else if (currentView==="drive")    buildDriveView(inner);
+else if (currentView==="settings") buildSettingsView(inner);
+
+vw.innerHTML=""; vw.appendChild(inner);
+
+// Navbar
+nb.innerHTML="";
+VIEWS.forEach(function(v){
+var btn=document.createElement("button");
+btn.className="nbtn"+(currentView===v.id?" on":"");
+btn.innerHTML=ICONS[v.icon]+'<span class="nlbl">'+v.label+'</span>';
+btn.addEventListener("click",function(){
+if (currentView===v.id) return;
+currentView=v.id;
+if (v.id==="invoices"&&DR.drafts===null) loadDrafts();
+else rerender();
+});
+nb.appendChild(btn);
+});
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", async function(){
+LS.rate = fmt(S.settings().defaultRate||1000);
+rerender();
+
+// Hent seneste data fra cloud i baggrunden
+var synced = await SYNC.pull();
+if (synced) {
+LS.rate = fmt(S.settings().defaultRate||1000);
+rerender();
+}
+});
 </script>
 </body>
 </html>

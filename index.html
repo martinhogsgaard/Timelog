@@ -1319,40 +1319,9 @@ function buildSettingsView(container) {
   prow.appendChild(pinp);
   container.appendChild(sgrp([prow]));
 
-  container.appendChild(div("slbl","<span>e-conomic forbindelse</span>"));
-  var tok1=div("srow");
-  var tok1l=div(""); tok1l.appendChild(div("srlbl","App Secret Token")); tok1l.appendChild(div("srsub","ECONOMIC_APP_SECRET i Vercel")); tok1.appendChild(tok1l);
-  tok1.appendChild(span("srval", cfg.appSecret ? "✓ Sat" : "✗ Mangler"));
-  var tok2=div("srow");
-  var tok2l=div(""); tok2l.appendChild(div("srlbl","Agreement Grant Token")); tok2l.appendChild(div("srsub","ECONOMIC_AGREEMENT_TOKEN i Vercel")); tok2.appendChild(tok2l);
-  tok2.appendChild(span("srval", cfg.agreementToken ? "✓ Sat" : "✗ Mangler"));
-  container.appendChild(sgrp([tok1,tok2]));
-
   var syncBtn=document.createElement("button"); syncBtn.className="btns"; syncBtn.innerHTML=ICONS.refresh+" Synkroniser kunder fra e-conomic";
   syncBtn.addEventListener("click",function(){doSync(syncBtn);});
   container.appendChild(syncBtn);
-
-  var uploadBtn=document.createElement("button"); uploadBtn.className="btns"; uploadBtn.innerHTML=ICONS.refresh+" Upload alt data til cloud";
-  uploadBtn.addEventListener("click", async function(){
-    uploadBtn.innerHTML="Uploader…"; uploadBtn.disabled=true;
-    try {
-      var key = await API.getAppKey();
-      var res = await fetch("/api/store", {
-        method: "POST",
-        headers: {"Content-Type":"application/json","x-app-key":key||""},
-        body: JSON.stringify({entries:S.entries(), customers:S.customers(), settings:S.settings()})
-      });
-      var data = await res.json();
-      if (data.ok) toast("✓ Alt data uploadet til cloud");
-      else toast("Fejl: "+JSON.stringify(data));
-    } catch(e) {
-      toast("Fejl: "+e.message);
-    } finally {
-      uploadBtn.innerHTML=ICONS.refresh+" Upload alt data til cloud";
-      uploadBtn.disabled=false;
-    }
-  });
-  container.appendChild(uploadBtn);
 
   var footer=div(""); footer.style.cssText="margin-top:40px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--subtle);letter-spacing:.1em";
   footer.textContent="TIMELOG v1.0 · e-CONOMIC INTEGRATION";

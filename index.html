@@ -520,7 +520,7 @@ var SYNC = {
       if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
       if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
       if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
-      if (data.notes     && data.notes.length     > 0) localStorage.setItem("tl_n", JSON.stringify(data.notes));
+      if (data.notes     !== undefined) localStorage.setItem("tl_n", JSON.stringify(data.notes));
       return true;
     } catch(e) {
       console.warn("Sync pull fejl:", e.message);
@@ -2545,6 +2545,15 @@ document.addEventListener("DOMContentLoaded", async function(){
     LS.rate = fmt(S.settings().defaultRate||1000);
     rerender();
   }
+
+  // Periodisk sync hvert 30 sekund — holder notater og data opdateret på tværs af enheder
+  setInterval(async function(){
+    var ok = await SYNC.pull();
+    if (ok && currentView === "notes") {
+      var inner = document.getElementById("vwrap").firstChild;
+      if (inner) buildNoteView(inner);
+    }
+  }, 30000);
 });
 </script>
 </body>

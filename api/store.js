@@ -1,72 +1,2560 @@
-// /api/store.js — læser og skriver app-data til Redis
-// GET  /api/store  → { entries, customers, settings, notes }
-// POST /api/store  → merger og gemmer
-const REDIS_URL   = process.env.KV_REST_API_URL;
-const REDIS_TOKEN = process.env.KV_REST_API_TOKEN;
-const APP_KEY     = process.env.APP_KEY;
-const STORE_KEY   = "timelog:data";
-async function redisCmd(cmd) {
-  const res = await fetch(REDIS_URL, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${REDIS_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(cmd)
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Timelog">
+<meta name="theme-color" content="#F5F4F0">
+<meta name="format-detection" content="telephone=no">
+<title>Timelog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+--bg:#F5F4F0;--white:#FFFFFF;--border:#E2E0DA;--border-dark:#C4C1B8;
+--text:#1A1917;--muted:#8C8980;--subtle:#C0BDB5;
+--accent:#2D5BE3;--accent-bg:#EBF0FD;
+--green:#1A7A4A;--green-bg:#E8F5EE;
+--font:'IBM Plex Sans',sans-serif;--mono:'IBM Plex Mono',monospace;--r:14px;
+}
+html,body{height:100%;overscroll-behavior:none;background:var(--bg)}
+body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg);position:relative}
+.vwrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.view{padding:0 20px 40px;animation:fi .2s ease}
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* NAV */
+.navbar{display:flex;border-top:1px solid var(--border);background:rgba(245,244,240,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:10px 0 max(16px,env(safe-area-inset-bottom));flex-shrink:0}
+.nbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px 8px;opacity:.32;transition:opacity .15s}
+.nbtn.on{opacity:1}
+.nbtn svg{width:22px;height:22px;stroke:var(--text);fill:none;stroke-width:1.6}
+.nbtn.on svg{stroke:var(--accent)}
+.nlbl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.nbtn.on .nlbl{color:var(--accent)}
+
+/* COMMON */
+.date-block{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.date-day{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.date-full{font-size:22px;font-weight:300;letter-spacing:-.02em}
+.date-full strong{font-weight:600}
+.vhdr{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:24px}
+.vtitle{font-size:22px;font-weight:600;letter-spacing:-.02em}
+.slbl{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;justify-content:space-between;align-items:center}
+
+/* STATS */
+.sbar{display:grid;grid-template-columns:1fr 1px 1fr;padding:18px 0;border-bottom:1px solid var(--border);margin-bottom:24px}
+.sdiv{background:var(--border)}
+.stat{padding:0 16px}
+.stat:first-child{padding-left:0}
+.stat:last-child{padding-right:0}
+.stat-l{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.stat-v{font-size:28px;font-weight:300;letter-spacing:-.03em;line-height:1}
+.stat-v strong{font-weight:600}
+.stat-u{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px}
+
+/* CARD */
+.card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:4px}
+.crow{display:flex;border-bottom:1px solid var(--border)}
+.crow:last-child{border-bottom:none}
+.crow.two>*{flex:1;border-right:1px solid var(--border)}
+.crow.two>*:last-child{border-right:none}
+.cf{padding:13px 16px;flex:1}
+.fl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+.fv{font-size:15px;font-weight:500;color:var(--text)}
+.fv.ph{color:var(--subtle);font-weight:400}
+.fs{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+input,textarea,select{width:100%;background:none;border:none;outline:none;font-family:var(--font);font-size:15px;font-weight:500;color:var(--text);padding:0}
+input::placeholder,textarea::placeholder{color:var(--subtle);font-weight:400}
+textarea{resize:none}
+
+/* HOUR PILLS */
+.hsec{padding:13px 16px;border-bottom:1px solid var(--border)}
+.hpills{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.hp{padding:7px 11px;border-radius:7px;border:1px solid var(--border);font-family:var(--mono);font-size:12px;color:var(--muted);background:var(--bg);cursor:pointer;transition:all .1s;user-select:none}
+.hp.on{background:var(--accent);border-color:var(--accent);color:white}
+
+/* BUTTONS */
+.btnp{width:100%;background:var(--text);color:var(--bg);border:none;border-radius:10px;padding:15px 20px;font-family:var(--font);font-size:15px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;transition:opacity .15s}
+.btnp:disabled{opacity:.3;cursor:not-allowed}
+.btnp svg{width:16px;height:16px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.75}
+.btns{width:100%;background:none;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:13px 20px;font-family:var(--font);font-size:14px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:10px}
+.btns svg{width:15px;height:15px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.75}
+
+/* ENTRIES */
+.elist{display:flex;flex-direction:column;gap:8px}
+.entry{background:var(--white);border:1px solid var(--border);border-radius:12px;display:flex;overflow:hidden}
+.ebar{width:3px;flex-shrink:0;background:var(--border-dark)}
+.ebar.sent{background:var(--green)}
+.ebar.draft{background:var(--accent)}
+.ebody{flex:1;padding:12px 14px;display:flex;align-items:center;gap:12px}
+.ehrs{font-family:var(--mono);font-size:19px;font-weight:400;min-width:46px;line-height:1.1}
+.ehrs small{display:block;font-size:9px;color:var(--muted);letter-spacing:.1em;margin-top:2px}
+.einfo{flex:1;min-width:0}
+.ecli{font-size:13px;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.emeta{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eright{display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0}
+.badge{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:4px}
+.badge.draft{background:var(--accent-bg);color:var(--accent)}
+.badge.sent{background:var(--green-bg);color:var(--green)}
+.eamt{font-family:var(--mono);font-size:11px;color:var(--muted)}
+
+/* SHEET */
+.overlay{position:fixed;inset:0;background:rgba(26,25,23,.45);backdrop-filter:blur(4px);z-index:50;display:flex;align-items:flex-end}
+.sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;height:92dvh;overflow-y:auto;padding:0 20px max(24px,env(safe-area-inset-bottom));animation:su .28s cubic-bezier(.22,1,.36,1)}
+@keyframes su{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.shandle{width:36px;height:4px;background:var(--border-dark);border-radius:2px;margin:12px auto 20px}
+.stitle{font-size:17px;font-weight:600;margin-bottom:16px}
+.sitem{display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.sitem:last-child{border-bottom:none}
+.siname{font-size:15px;font-weight:500}
+.sisub{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px}
+.sicheck{color:var(--accent);font-size:18px;font-weight:600}
+
+/* TOAST */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:var(--text);color:var(--bg);padding:11px 18px;border-radius:10px;font-size:14px;font-weight:500;z-index:200;white-space:nowrap;pointer-events:none;animation:ti .25s ease}
+@keyframes ti{from{opacity:0;transform:translateX(-50%) translateY(8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* EMPTY */
+.empty{text-align:center;padding:52px 24px;color:var(--muted)}
+.eico{font-size:32px;margin-bottom:12px;opacity:.35}
+.etxt{font-size:13px;font-family:var(--mono);line-height:1.8}
+
+/* INVOICE */
+.icard{background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.ihdr{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);cursor:pointer}
+.icli{font-size:15px;font-weight:600}
+.inum{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.iright{display:flex;align-items:center;gap:10px}
+.itot{font-size:15px;font-weight:600;text-align:right}
+.isub{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.ichev{transition:transform .2s;color:var(--muted);display:flex}
+.ichev.open{transform:rotate(90deg)}
+.iline{padding:10px 16px;display:flex;align-items:center;border-bottom:1px solid var(--border);font-size:13px;gap:8px}
+.iline:last-child{border-bottom:none}
+.iln{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:20px}
+.ild{flex:1;color:var(--text);font-size:12px}
+.ilh{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap}
+.ila{font-family:var(--mono);font-size:12px;font-weight:500;white-space:nowrap}
+.iftr{padding:12px 16px;background:var(--bg);display:flex;justify-content:space-between;align-items:center}
+.itlbl{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.itval{font-size:17px;font-weight:600}
+
+/* SETTINGS */
+.srow{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--white)}
+.srow:last-child{border-bottom:none}
+.srlbl{font-size:14px;font-weight:500}
+.srsub{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.srval{font-family:var(--mono);font-size:13px;color:var(--muted)}
+.srinp{background:none;border:none;outline:none;font-family:var(--mono);font-size:13px;text-align:right;color:var(--text)}
+.sgrp{border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:24px}
+
+/* SPINNER */
+.spin{width:18px;height:18px;border:2px solid rgba(255,255,255,.3);border-top-color:white;border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+.spin-dark{width:24px;height:24px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .7s linear infinite;margin:0 auto 14px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* SCAN VIEW */
+.scan-drop{border:2px dashed var(--border);border-radius:var(--r);padding:32px 20px;text-align:center;cursor:pointer;transition:all .2s;background:var(--white);margin-bottom:16px}
+.scan-drop:hover{border-color:var(--accent);background:var(--accent-bg)}
+.scan-drop svg{width:36px;height:36px;stroke:var(--muted);fill:none;stroke-width:1.4;margin-bottom:10px}
+.scan-drop.has-img{padding:0;overflow:hidden;border-style:solid;border-color:var(--accent)}
+.scan-drop img{width:100%;max-height:260px;object-fit:contain;display:block}
+.scan-preview{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.scan-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+.scan-row:last-child{border-bottom:none}
+.scan-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.scan-val{font-size:15px;font-weight:500}
+.scan-edit{background:none;border:none;outline:none;font-family:var(--font);font-size:15px;font-weight:500;color:var(--text);text-align:right;width:100%}
+.avance-row{background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.avance-left{font-size:13px;color:var(--accent);font-weight:500}
+.avance-total{font-size:18px;font-weight:600;color:var(--accent)}
+.avance-sub{font-family:var(--mono);font-size:10px;color:var(--accent);opacity:.7;margin-top:2px}
+.pct-pills{display:flex;gap:6px;margin-top:8px}
+.pct-pill{padding:5px 10px;border-radius:6px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);cursor:pointer}
+.pct-pill.on{background:var(--accent);border-color:var(--accent);color:white}
+.ai-thinking{display:flex;flex-direction:column;align-items:center;padding:40px 20px;gap:12px}
+.ai-thinking .spin-dark{width:32px;height:32px}
+.ai-lbl{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em}
+
+/* KONTO KNAP I HEADER */
+.konto-btn{position:absolute;top:max(52px,env(safe-area-inset-top));right:20px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:10}
+.konto-btn svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
+.konto-btn.active svg{stroke:var(--accent)}
+
+/* NOTATER */
+.note-item{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px}
+.note-item-hdr{display:flex;align-items:center;padding:12px 14px;gap:10px}
+.note-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.note-dot.done{background:var(--green)}
+.note-text{flex:1;font-size:14px;font-weight:500;line-height:1.4}
+.note-text.done{color:var(--muted);text-decoration:line-through;font-weight:400}
+.note-customer{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.note-actions{display:flex;gap:6px;flex-shrink:0}
+.note-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:5px 8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.note-btn svg{width:14px;height:14px;fill:none;stroke:var(--muted);stroke-width:1.6}
+.note-btn.done-btn svg{stroke:var(--green)}
+.note-add-area{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.note-add-ta{width:100%;background:none;border:none;outline:none;font-family:var(--font);font-size:15px;color:var(--text);padding:13px 16px;resize:none;min-height:80px}
+
+/* DRIVE VIEW */
+.drive-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:visible;margin-bottom:16px}
+.drive-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border);gap:12px}
+.drive-row:last-child{border-bottom:none}
+.drive-icon{width:36px;height:36px;background:var(--accent-bg);border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.drive-icon svg{width:18px;height:18px;stroke:var(--accent);fill:none;stroke-width:1.6}
+.drive-content{flex:1;min-width:0}
+.drive-lbl{font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.drive-val{font-size:14px;font-weight:500;color:var(--text)}
+.drive-val.ph{color:var(--subtle);font-weight:400}
+.drive-inp{background:none;border:none;outline:none;font-family:var(--font);font-size:14px;font-weight:500;color:var(--text);width:100%;padding:0}
+.drive-inp::placeholder{color:var(--subtle);font-weight:400}
+.locate-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--accent);cursor:pointer;white-space:nowrap;flex-shrink:0;letter-spacing:.05em}
+.route-box{background:var(--accent-bg);border:1px solid var(--accent);border-radius:var(--r);padding:16px;margin-bottom:16px}
+.route-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.route-km{font-size:28px;font-weight:300;letter-spacing:-.02em;color:var(--accent)}
+.route-km strong{font-weight:600}
+.route-kr{font-size:18px;font-weight:600;color:var(--accent)}
+.route-detail{font-family:var(--mono);font-size:10px;color:var(--accent);opacity:.7}
+.retur-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--white);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px;cursor:pointer}
+.retur-lbl{font-size:14px;font-weight:500}
+.toggle{width:44px;height:26px;background:var(--border);border-radius:13px;position:relative;transition:background .2s;flex-shrink:0}
+.toggle.on{background:var(--accent)}
+.toggle-dot{width:20px;height:20px;background:white;border-radius:50%;position:absolute;top:3px;left:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+.toggle.on .toggle-dot{transform:translateX(18px)}
+.sats-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.sats-pill{padding:6px 12px;border-radius:7px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);cursor:pointer}
+.sats-pill.on{background:var(--accent);border-color:var(--accent);color:white}
+
+/* DASHBOARD */
+.dash-sbar{display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.dash-stat{padding:0 12px}
+.dash-stat:first-child{padding-left:0}
+.dash-stat:last-child{padding-right:0}
+.dash-stat-l{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.dash-stat-v{font-size:22px;font-weight:300;letter-spacing:-.03em;line-height:1}
+.dash-stat-v strong{font-weight:600}
+.dash-stat-u{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px}
+.dash-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.dash-bar-name{font-size:12px;font-weight:500;min-width:80px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-bar-track{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.dash-bar-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .4s ease}
+.dash-bar-val{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap;min-width:70px;text-align:right}
+.dash-month-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dash-month-lbl{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:28px}
+.dash-month-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.dash-month-fill{height:100%;background:var(--accent);border-radius:3px;opacity:.7}
+.dash-month-val{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:60px;text-align:right}
+.dash-month-hrs{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:36px;text-align:right}
+.dash-divider{height:1px;background:var(--border);margin:20px 0}
+.eff-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px}
+.eff-fill{height:100%;border-radius:4px;background:var(--green)}
+
+/* RAPPORT SHEET */
+.rapport-overlay{position:fixed;inset:0;background:rgba(26,25,23,.5);backdrop-filter:blur(6px);z-index:100;display:flex;align-items:flex-end}
+.rapport-sheet{background:var(--white);border-radius:20px 20px 0 0;width:100%;max-height:92dvh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 20px max(28px,env(safe-area-inset-bottom));animation:su .28s cubic-bezier(.22,1,.36,1)}
+.rapport-hdr{padding:16px 0 12px;border-bottom:1px solid var(--border);margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.rapport-title{font-size:17px;font-weight:600;letter-spacing:-.02em}
+.rapport-close{background:none;border:none;font-size:22px;color:var(--muted);cursor:pointer;padding:0;line-height:1}
+.rapport-meta{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:16px}
+.rapport-table{width:100%;border-collapse:collapse;margin-bottom:16px}
+.rapport-table thead tr{border-bottom:2px solid var(--border)}
+.rapport-table thead th{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 0 8px 0;text-align:left;font-weight:500}
+.rapport-table thead th.num{text-align:right;padding-left:14px}
+.rapport-table thead th:last-child{text-align:right}
+.rapport-table tbody tr{border-bottom:1px solid var(--border)}
+.rapport-table tbody tr:last-child{border-bottom:none}
+.rapport-table tbody td{padding:10px 0;font-size:13px;vertical-align:top}
+.rapport-table tbody td.date{font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;padding-right:10px;padding-top:12px;width:36px}
+.rapport-table tbody td.desc{color:var(--text);line-height:1.4;word-break:break-word;max-width:0;width:100%}
+.rapport-table tbody td.desc .desc-main{font-size:13px;font-weight:500;margin-bottom:2px}
+.rapport-table tbody td.desc .desc-time{font-family:var(--mono);font-size:10px;color:var(--muted)}
+.rapport-table tbody td.num{font-family:var(--mono);font-size:11px;text-align:right;white-space:nowrap;padding-left:14px;padding-top:12px;min-width:44px}
+.rapport-table tbody td.num.real{color:var(--muted)}
+.rapport-table tbody td.num.bill{color:var(--text);font-weight:500}
+.rapport-footer{background:var(--bg);border-radius:10px;padding:14px 16px;margin-bottom:16px}
+.rapport-footer-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.rapport-footer-row:last-child{margin-bottom:0;padding-top:8px;border-top:1px solid var(--border)}
+.rapport-footer-lbl{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.rapport-footer-val{font-family:var(--mono);font-size:13px;font-weight:500}
+.rapport-footer-val.accent{color:var(--accent)}
+.rapport-footer-val.big{font-size:17px;font-weight:600}
+</style>
+</head>
+<body>
+<div id="app">
+<button class="konto-btn" id="kontoBtn"></button>
+<div class="vwrap" id="vwrap"></div>
+<nav class="navbar" id="navbar"></nav>
+</div>
+<div id="toaster"></div>
+
+<script>
+// ─── CONFIG ──────────────────────────────────────────────────────
+window.EC = {
+  useProxy: true,
+  appKey: null  // sættes automatisk via /api/init
+};
+
+// ─── STORAGE ─────────────────────────────────────────────────────
+var S = {
+  g: function(k,d){try{var v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  s: function(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}},
+  customers: function(){return this.g("tl_c",[])},
+  setCustomers: function(v){this.s("tl_c",v); SYNC.push({customers:v});},
+  entries: function(){return this.g("tl_e",[])},
+  setEntries: function(v){this.s("tl_e",v); SYNC.push({entries:v});},
+  settings: function(){return this.g("tl_s",{defaultRate:1000,userName:"",userInitials:""})},
+  setSettings: function(v){
+    var merged=Object.assign(this.g("tl_s",{}),v);
+    this.s("tl_s",merged);
+    SYNC.push({settings:merged});
+  },
+  addEntry: function(e){
+    var entry=Object.assign({id:Date.now().toString(),createdAt:new Date().toISOString(),status:"sent"},e);
+    this.setEntries([entry].concat(this.entries()));
+    return entry;
+  },
+  mergeCustomers: function(ec){
+    var prev=this.customers(),map={};
+    prev.forEach(function(c){map[c.number]=c;});
+    var merged=ec.map(function(c){return Object.assign({},c,{rate:map[c.number]?map[c.number].rate:null});});
+    this.setCustomers(merged);
+    return merged;
+  },
+  setCustomerRate: function(num,rate){
+    this.setCustomers(this.customers().map(function(c){return c.number===num?Object.assign({},c,{rate:rate}):c;}));
+  },
+  notes: function(){return this.g("tl_n",[]);},
+  setNotes: function(v){this.s("tl_n",v); SYNC.push({notes:v});},
+  addNote: function(customerNumber, customerName, text){
+    var note={id:Date.now().toString(), createdAt:new Date().toISOString(), customerNumber:customerNumber, customerName:customerName, text:text, done:false};
+    this.setNotes([note].concat(this.notes()));
+    return note;
+  },
+  toggleNote: function(id){
+    this.setNotes(this.notes().map(function(n){return n.id===id?Object.assign({},n,{done:!n.done}):n;}));
+  },
+  deleteNote: function(id){
+    this.setNotes(this.notes().filter(function(n){return n.id!==id;}));
+  }
+};
+
+// ─── API ─────────────────────────────────────────────────────────
+var API = {
+  async getAppKey() {
+    if (window.EC.appKey) return window.EC.appKey;
+    // FIX: bruger /api/init og data.k
+    var res = await fetch("/api/init");
+    var data = await res.json();
+    window.EC.appKey = data.k;
+    return window.EC.appKey;
+  },
+
+  async req(path, method, body) {
+    method = method || "GET";
+    var opts, url;
+    if (window.EC.useProxy) {
+      var key = await this.getAppKey();
+      url = "/api/proxy";
+      opts = {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-app-key": key || ""
+        },
+        body: JSON.stringify({path:path, method:method, body:body||undefined})
+      };
+    } else {
+      url = "https://restapi.e-conomic.com" + path;
+      opts = {
+        method: method,
+        headers: {
+          "Content-Type":"application/json",
+          "X-AppSecretToken": window.EC.appSecret||"",
+          "X-AgreementGrantToken": window.EC.agreementToken||""
+        }
+      };
+      if (body) opts.body = JSON.stringify(body);
+    }
+    var res = await fetch(url, opts);
+    if (res.status === 204) return null;
+    var data = await res.json().catch(function(){return {};});
+    if (!res.ok) throw new Error(data.message || "HTTP " + res.status);
+    return data;
+  },
+
+  async getCustomers() {
+    var all = [];
+    var url = "/customers?pagesize=100&skippages=0";
+    while (url) {
+      var d = await this.req(url);
+      var batch = d.collection||[];
+      all = all.concat(batch);
+      // Følg e-conomic's nextPage link hvis det findes
+      url = (d.pagination && d.pagination.nextPage)
+        ? d.pagination.nextPage.replace("https://restapi.e-conomic.com","")
+        : null;
+      // Fallback: hvis ingen nextPage men vi fik 100, prøv næste side manuelt
+      if (!url && batch.length === 100) {
+        var skip = all.length / 100;
+        url = "/customers?pagesize=100&skippages="+skip;
+      }
+    }
+    all.sort(function(a,b){ return (a.name||"").localeCompare(b.name||"","da"); });
+    return all.map(function(c){
+      var parts = [];
+      if (c.address) parts.push(c.address);
+      if (c.zip)     parts.push(c.zip);
+      if (c.city)    parts.push(c.city);
+      var addr = parts.join(" ");
+      return {id:c.customerNumber, name:c.name, number:c.customerNumber, rate:null, address:addr};
+    });
+  },
+
+  async findDraft(customerNumber) {
+    var d = await this.req("/invoices/drafts?filter=customer.customerNumber$eq:"+customerNumber+"&pagesize=10");
+    return (d.collection||[])[0] || null;
+  },
+
+  async getFirstLayout() {
+    var d = await this.req("/layouts?pagesize=1");
+    return (d.collection||[])[0]?.layoutNumber || null;
+  },
+
+  async getCustomerDetails(customerNumber) {
+    var d = await this.req("/customers/"+customerNumber);
+    return d;
+  },
+
+  async createDraft(customerNumber) {
+    var layoutNumber = await this.getFirstLayout();
+    var customer = await this.getCustomerDetails(customerNumber);
+    var recipient = {
+      name: customer.name || "",
+      vatZone: {vatZoneNumber: customer.vatZone?.vatZoneNumber || 1}
+    };
+    if (customer.address) recipient.address = customer.address;
+    if (customer.zip)     recipient.zip     = customer.zip;
+    if (customer.city)    recipient.city    = customer.city;
+    if (customer.country) recipient.country = customer.country;
+    var body = {
+      date: new Date().toISOString().split("T")[0],
+      currency: customer.currency?.code || "DKK",
+      paymentTerms: customer.paymentTerms ? {paymentTermsNumber: customer.paymentTerms.paymentTermsNumber} : {paymentTermsNumber:1},
+      customer: {customerNumber: customerNumber},
+      recipient: recipient
+    };
+    if (layoutNumber) body.layout = {layoutNumber: layoutNumber};
+    return this.req("/invoices/drafts","POST",body);
+  },
+
+  async addLine(draftNumber, desc, qty, price) {
+    var draft = await this.req("/invoices/drafts/"+draftNumber);
+    var existingLines = draft.lines || [];
+    var lineNumber = existingLines.length + 1;
+    var productNumber = String(S.settings().productNumber||"2");
+    var newLine = {
+      lineNumber: lineNumber,
+      description: desc,
+      quantity: Math.round(qty * 100) / 100,
+      unitNetPrice: Math.round(price * 100) / 100,
+      discountPercentage: 0,
+      unit: {unitNumber:1},
+      product: {productNumber: productNumber}
+    };
+    draft.lines = existingLines.concat([newLine]);
+    return this.req("/invoices/drafts/"+draftNumber, "PUT", draft);
+  },
+
+  async getDraftLines(draftNumber) {
+    var d = await this.req("/invoices/drafts/"+draftNumber);
+    return d.lines||[];
+  },
+
+  async getAllDrafts() {
+    var d = await this.req("/invoices/drafts?pagesize=50");
+    return d.collection||[];
+  },
+
+  async getPaymentTerms() {
+    var d = await this.req("/payment-terms?pagesize=50");
+    return d.collection||[];
+  },
+
+  async createCustomer(data) {
+    return this.req("/customers", "POST", data);
+  },
+
+  async logHours(customerNumber, date, description, hours, rate) {
+    var draft = await this.findDraft(customerNumber);
+    if (!draft) draft = await this.createDraft(customerNumber);
+    var dn = draft.draftInvoiceNumber;
+    var fd = new Date(date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
+    await this.addLine(dn, fd+" – "+description, hours, rate);
+    return dn;
+  }
+};
+
+// ─── CLOUD SYNC ──────────────────────────────────────────────────
+// VIGTIGT: SYNC skal defineres EFTER API
+var SYNC = {
+  _timer: null,
+  _syncing: false,
+  _pending: {},
+
+  pull: async function() {
+    try {
+      var key = await API.getAppKey();
+      var res = await fetch("/api/store", {
+        headers: { "x-app-key": key||"" }
+      });
+      if (!res.ok) return false;
+      var data = await res.json();
+      if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
+      if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
+      if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
+      if (data.notes     !== undefined) localStorage.setItem("tl_n", JSON.stringify(data.notes));
+      return true;
+    } catch(e) {
+      console.warn("Sync pull fejl:", e.message);
+      return false;
+    }
+  },
+
+  push: function(payload) {
+    clearTimeout(this._timer);
+    this._pending = Object.assign(this._pending, payload);
+    var self = this;
+    this._timer = setTimeout(async function() {
+      if (self._syncing) return;
+      self._syncing = true;
+      try {
+        var key = await API.getAppKey();
+        await fetch("/api/store", {
+          method: "POST",
+          headers: { "Content-Type":"application/json", "x-app-key": key||"" },
+          body: JSON.stringify(self._pending)
+        });
+        self._pending = {};
+      } catch(e) {
+        console.warn("Sync push fejl:", e.message);
+      } finally {
+        self._syncing = false;
+      }
+    }, 1500);
+  }
+};
+
+// ─── HELPERS ─────────────────────────────────────────────────────
+var DAYS   = ["Søndag","Mandag","Tirsdag","Onsdag","Torsdag","Fredag","Lørdag"];
+var MONTHS = ["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"];
+var MONTHS_S = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+
+function fmt(n) {
+  if (n===null||n===undefined) return "–";
+  return (n%1===0) ? String(n) : String(n).replace(".",",");
+}
+
+function parseH(s) {
+  if (!s) return null;
+  var n = parseFloat(String(s).replace(",","."));
+  return (isNaN(n)||n<=0) ? null : n;
+}
+
+function todayStr() {
+  return new Date().toISOString().split("T")[0];
+}
+
+function dateLabel(ds) {
+  var d = new Date(ds+"T00:00:00");
+  var t = todayStr();
+  var y = new Date(Date.now()-86400000).toISOString().split("T")[0];
+  if (ds===t) return "I dag";
+  if (ds===y) return "I går";
+  return d.getDate()+". "+MONTHS_S[d.getMonth()]+" "+d.getFullYear();
+}
+
+function weeklySums() {
+  var entries = S.entries();
+  var now = new Date();
+  var day = now.getDay()||7;
+  var mon = new Date(now); mon.setDate(now.getDate()-day+1); mon.setHours(0,0,0,0);
+  var t = todayStr(), today=0, week=0, todayReal=0, weekReal=0;
+  entries.forEach(function(e){
+    var d=new Date(e.date+"T00:00:00");
+    if (e.date===t) { today+=e.hours; if(e.realHours) todayReal+=e.realHours; }
+    if (d>=mon) { week+=e.hours; if(e.realHours) weekReal+=e.realHours; }
   });
-  return res.json();
+  return {today:today, week:week, todayReal:todayReal, weekReal:weekReal};
 }
-async function redisGet(key) {
-  const data = await redisCmd(["GET", key]);
-  if (!data.result) return null;
-  return JSON.parse(data.result);
+
+var _toastTimer;
+function toast(msg, dur) {
+  dur = dur||3200;
+  clearTimeout(_toastTimer);
+  document.getElementById("toaster").innerHTML = '<div class="toast">'+msg+'</div>';
+  _toastTimer = setTimeout(function(){document.getElementById("toaster").innerHTML="";}, dur);
 }
-async function redisSet(key, value) {
-  await redisCmd(["SET", key, JSON.stringify(value)]);
+
+// SVG icons
+var ICONS = {
+  clock:   '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  history: '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1018 0 9 9 0 00-18 0"/><path d="M12 7v5l3 3"/></svg>',
+  file:    '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></svg>',
+  user:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>',
+  send:    '<svg viewBox="0 0 24 24"><polyline points="22 2 11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>',
+  refresh: '<svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9A9 9 0 0120.5 15M20.5 15A9 9 0 013.5 9"/></svg>',
+  chevron: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
+  camera:  '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
+  car:     '<svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h1l2-4h12l2 4h1a2 2 0 012 2v6a2 2 0 01-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>',
+  pin:     '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  note:    '<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
+  gear:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
+  plus:    '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  check:   '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+  trash:   '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>'
+};
+
+// iOS keyboard scroll helper — bruges på alle input-felter der kan gemme sig bag tastaturet
+function iosScrollOnFocus(inp) {
+  if (!inp) return;
+  inp.addEventListener("focus", function(){
+    setTimeout(function(){
+      var vwrap = document.getElementById("vwrap");
+      if (!vwrap) return;
+      inp.scrollIntoView({behavior:"smooth", block:"center"});
+      setTimeout(function(){
+        var rect = inp.getBoundingClientRect();
+        var windowH = window.innerHeight;
+        // Hvis feltet er i den nedre halvdel, scroll ekstra op
+        if (rect.bottom > windowH * 0.55) {
+          vwrap.scrollTop += rect.bottom - windowH * 0.45;
+        }
+      }, 350);
+    }, 300);
+  });
 }
-async function checkRateLimit(ip, max, ttl) {
-  if (!REDIS_URL || !REDIS_TOKEN) return true;
+
+function el(tag, attrs, children) {
+  var node = document.createElement(tag);
+  if (attrs) Object.keys(attrs).forEach(function(k){
+    if (k==="class") node.className=attrs[k];
+    else if (k==="style") node.style.cssText=attrs[k];
+    else node.setAttribute(k,attrs[k]);
+  });
+  if (children) {
+    if (typeof children==="string") node.innerHTML=children;
+    else if (Array.isArray(children)) children.forEach(function(c){if(c)node.appendChild(c);});
+    else node.appendChild(children);
+  }
+  return node;
+}
+
+function div(cls, html) { var d=document.createElement("div"); d.className=cls; if(html)d.innerHTML=html; return d; }
+function span(cls, html) { var s=document.createElement("span"); s.className=cls; s.innerHTML=html; return s; }
+
+// ─── SHEET ───────────────────────────────────────────────────────
+function showSheet(title, items) {
+  var overlay = div("overlay");
+  var sheet = div("sheet");
+  var handle = div("shandle");
+  var titleEl = div("stitle", title);
+  sheet.appendChild(handle);
+  sheet.appendChild(titleEl);
+  items.forEach(function(item) {
+    var row = div("sitem");
+    var left = div("");
+    left.appendChild(div("siname", item.name));
+    if (item.sub) left.appendChild(div("sisub", item.sub));
+    row.appendChild(left);
+    if (item.checked) row.appendChild(span("sicheck", "✓"));
+    row.addEventListener("click", function(){
+      item.onSelect();
+      document.body.removeChild(overlay);
+    });
+    sheet.appendChild(row);
+  });
+  overlay.appendChild(sheet);
+  overlay.addEventListener("click", function(e){
+    if (e.target===overlay) document.body.removeChild(overlay);
+  });
+  document.body.appendChild(overlay);
+}
+
+// ─── SHEET WITH SEARCH ───────────────────────────────────────────
+function showSheetWithSearch(title, items) {
+  var overlay = div("overlay");
+  var sheet = div("sheet");
+
+  sheet.appendChild(div("shandle",""));
+  sheet.appendChild(div("stitle", title));
+
+  // Søgefelt øverst — font-size 16px forhindrer iOS auto-zoom
+  var searchInp = document.createElement("input");
+  searchInp.type = "text";
+  searchInp.placeholder = "Søg…";
+  searchInp.style.cssText = "width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font);font-size:16px;color:var(--text);outline:none;margin-bottom:12px;display:block";
+  sheet.appendChild(searchInp);
+
+  var listWrap = div("");
+  sheet.appendChild(listWrap);
+
+  function closeSheet() {
+    if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    document.body.style.overflow = "";
+  }
+
+  function renderList(filter) {
+    listWrap.innerHTML = "";
+    var filtered = filter
+      ? items.filter(function(i){ return i.name.toLowerCase().indexOf(filter.toLowerCase()) >= 0; })
+      : items;
+    filtered.forEach(function(item) {
+      var row = div("sitem");
+      var left = div("");
+      left.appendChild(div("siname", item.name));
+      if (item.sub) left.appendChild(div("sisub", item.sub));
+      row.appendChild(left);
+      if (item.checked) row.appendChild(span("sicheck", "✓"));
+      row.addEventListener("click", function(){
+        item.onSelect();
+        closeSheet();
+      });
+      listWrap.appendChild(row);
+    });
+    if (filtered.length === 0) {
+      listWrap.appendChild(div("", "<div style='padding:20px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Ingen resultater</div>"));
+    }
+  }
+
+  searchInp.addEventListener("input", function(){ renderList(searchInp.value); });
+  renderList("");
+  setTimeout(function(){ searchInp.focus(); }, 300);
+
+  overlay.appendChild(sheet);
+  overlay.addEventListener("click", function(e){
+    if (e.target===overlay) closeSheet();
+  });
+  document.body.style.overflow = "hidden";
+  document.body.appendChild(overlay);
+}
+
+function entryIcon(e) {
+  var type = e.type;
+  if (!type) {
+    var desc = (e.description||"").toLowerCase();
+    if (desc.indexOf("kørsel") >= 0 || desc.indexOf("km") >= 0) type = "drive";
+    else if (desc.indexOf("avance") >= 0 || desc.indexOf("faktura") >= 0) type = "scan";
+    else type = "hours";
+  }
+  var ico = type==="drive" ? "car" : type==="scan" ? "camera" : "clock";
+  var wrap = div("ehrs");
+  wrap.style.cssText = "display:flex;align-items:center;justify-content:center;min-width:36px";
+  wrap.innerHTML = ICONS[ico];
+  wrap.querySelector("svg").style.cssText = "width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6";
+  return wrap;
+}
+
+// ─── STATE ───────────────────────────────────────────────────────
+var LS = {
+  date: todayStr(),
+  hours: "",
+  desc: "",
+  rate: fmt(S.settings().defaultRate||1000),
+  customer: null,
+  loading: false,
+  realFrom: "",
+  realTo: ""
+};
+
+// ─── LOG VIEW ────────────────────────────────────────────────────
+function buildLogView(container) {
+  var now = new Date();
+  var sums = weeklySums();
+  var entries = S.entries().slice(0,6);
+  var settings = S.settings();
+  var customers = S.customers();
+  container.innerHTML = "";
+
+  // Date block
+  var db = div("date-block");
+  db.appendChild(div("date-day", "I dag"));
+  var df = div("date-full");
+  df.innerHTML = "<strong>"+DAYS[now.getDay()]+"</strong>, "+now.getDate()+". "+MONTHS[now.getMonth()]+" "+now.getFullYear();
+  db.appendChild(df);
+  container.appendChild(db);
+
+  // Stats
+  var sb = div("sbar");
+  var s1 = div("stat");
+  s1.appendChild(div("stat-l","I dag — faktureret"));
+  var sv1=div("stat-v"); sv1.innerHTML="<strong>"+fmt(sums.today)+"</strong>"; s1.appendChild(sv1);
+  var s1sub = sums.todayReal > 0 ? fmt(sums.todayReal)+" t reel" : "timer";
+  s1.appendChild(div("stat-u", s1sub));
+  var s2 = div("stat");
+  s2.appendChild(div("stat-l","Denne uge"));
+  s2.appendChild(div("stat-v",fmt(sums.week)));
+  var s2sub = sums.weekReal > 0 ? fmt(sums.weekReal)+" t reel" : "timer";
+  s2.appendChild(div("stat-u", s2sub));
+  var sdiv2 = div("sdiv");
+  sb.appendChild(s1); sb.appendChild(sdiv2); sb.appendChild(s2);
+  container.appendChild(sb);
+
+  container.appendChild(div("slbl","<span>Registrer timer</span>"));
+
+  var card = div("card");
+
+  // Customer row
+  var crow1 = div("crow");
+  var cf1 = div("cf");
+  cf1.style.display="flex"; cf1.style.alignItems="center"; cf1.style.justifyContent="space-between"; cf1.style.cursor="pointer";
+  var cf1left = div("");
+  cf1left.appendChild(div("fl","Kunde"));
+  if (LS.customer) {
+    cf1left.appendChild(div("fv",LS.customer.name));
+    var rateTxt = LS.customer.rate ? " · "+fmt(LS.customer.rate)+" kr/t" : "";
+    cf1left.appendChild(div("fs","Nr. "+LS.customer.number+rateTxt));
+  } else {
+    var ph = div("fv ph");
+    ph.textContent = customers.length===0 ? "Synkroniser kunder i Konto →" : "Vælg kunde →";
+    cf1left.appendChild(ph);
+  }
+  var chev = div(""); chev.innerHTML=ICONS.chevron; chev.style.color="var(--muted)"; chev.style.display="flex";
+  cf1.appendChild(cf1left); cf1.appendChild(chev);
+  crow1.appendChild(cf1);
+  crow1.addEventListener("click", function(){
+    if (customers.length===0) { toast("Gå til Konto og synkroniser kunder først"); return; }
+    showSheetWithSearch("Vælg kunde", customers.map(function(c){
+      var sub = "Nr. "+c.number+(c.rate ? " · "+fmt(c.rate)+" kr/t" : "");
+      return {
+        name: c.name, sub: sub,
+        checked: LS.customer && LS.customer.number===c.number,
+        onSelect: function(){
+          LS.customer = c;
+          var s = S.settings();
+          LS.rate = fmt(c.rate||s.defaultRate||1000);
+          buildLogView(container);
+        }
+      };
+    }));
+  });
+  card.appendChild(crow1);
+
+  // Date + rate row
+  var crow2 = div("crow two");
+  var cf2a = div("cf"); cf2a.appendChild(div("fl","Dato"));
+  var dateInp = document.createElement("input"); dateInp.type="date"; dateInp.value=LS.date; dateInp.className="fv";
+  dateInp.addEventListener("input",function(){LS.date=dateInp.value;});
+  cf2a.appendChild(dateInp);
+  var cf2b = div("cf"); cf2b.appendChild(div("fl","Timepris (kr)"));
+  var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal"; rateInp.value=LS.rate; rateInp.placeholder=String(settings.defaultRate||1000); rateInp.className="fv";
+  rateInp.addEventListener("input",function(){LS.rate=rateInp.value; updateSubmitBtn();});
+  cf2b.appendChild(rateInp);
+  crow2.appendChild(cf2a); crow2.appendChild(cf2b);
+  card.appendChild(crow2);
+
+  // Hours — to kolonner: fakturerbar + reel tid
+  var crow_hrs = div("crow two");
+
+  // Venstre: fakturerbare timer
+  var cf_bill = div("cf");
+  cf_bill.appendChild(div("fl","Fakturerbar tid"));
+  var hoursInp = document.createElement("input");
+  hoursInp.type="text"; hoursInp.inputMode="decimal"; hoursInp.value=LS.hours;
+  hoursInp.placeholder="f.eks. 7,5"; hoursInp.className="fv";
+  hoursInp.style.marginTop="4px";
+  hoursInp.addEventListener("input",function(){LS.hours=hoursInp.value; updateSubmitBtn(); updateRealDiff();});
+  cf_bill.appendChild(hoursInp);
+  // Diff label (opdateres dynamisk)
+  var diffLbl = div("fs"); diffLbl.style.marginTop="4px"; diffLbl.style.minHeight="14px";
+  cf_bill.appendChild(diffLbl);
+  crow_hrs.appendChild(cf_bill);
+
+  // Højre: reel tid (fra/til)
+  var cf_real = div("cf");
+  cf_real.appendChild(div("fl","Reel tid"));
+  var timeWrap = div(""); timeWrap.style.cssText="display:flex;align-items:center;gap:4px;margin-top:4px";
+  var fromInp = document.createElement("input");
+  fromInp.type="time"; fromInp.value=LS.realFrom; fromInp.className="fv";
+  fromInp.style.cssText="font-size:14px;width:50%;padding:0";
+  fromInp.addEventListener("input",function(){LS.realFrom=fromInp.value; updateRealDiff();});
+  var sepSpan = document.createElement("span");
+  sepSpan.textContent="–"; sepSpan.style.cssText="color:var(--muted);font-size:13px;flex-shrink:0";
+  var toInp = document.createElement("input");
+  toInp.type="time"; toInp.value=LS.realTo; toInp.className="fv";
+  toInp.style.cssText="font-size:14px;width:50%;padding:0";
+  toInp.addEventListener("input",function(){LS.realTo=toInp.value; updateRealDiff();});
+  timeWrap.appendChild(fromInp); timeWrap.appendChild(sepSpan); timeWrap.appendChild(toInp);
+  cf_real.appendChild(timeWrap);
+  var realHrsLbl = div("fs"); realHrsLbl.style.marginTop="4px"; realHrsLbl.style.minHeight="14px";
+  cf_real.appendChild(realHrsLbl);
+  crow_hrs.appendChild(cf_real);
+
+  card.appendChild(crow_hrs);
+
+  function calcRealHours() {
+    if (!LS.realFrom || !LS.realTo) return null;
+    var from = LS.realFrom.split(":").map(Number);
+    var to = LS.realTo.split(":").map(Number);
+    var mins = (to[0]*60+to[1]) - (from[0]*60+from[1]);
+    if (mins <= 0) return null;
+    return Math.round(mins / 6) / 10; // afrund til 1 decimal
+  }
+
+  function updateRealDiff() {
+    var real = calcRealHours();
+    var billed = parseH(LS.hours);
+    if (real !== null) {
+      realHrsLbl.textContent = fmt(real) + " t i alt";
+      if (billed !== null) {
+        var diff = Math.round((real - billed) * 10) / 10;
+        if (diff > 0) diffLbl.textContent = diff + " t ikke-fakt.";
+        else if (diff < 0) diffLbl.textContent = "OBS: mere fakt. end reel";
+        else diffLbl.textContent = "100% faktureret";
+        diffLbl.style.color = diff > 0 ? "var(--muted)" : diff < 0 ? "#c0392b" : "var(--green)";
+      } else {
+        diffLbl.textContent = "";
+      }
+    } else {
+      realHrsLbl.textContent = "";
+      diffLbl.textContent = "";
+    }
+  }
+  updateRealDiff();
+
+  // Description
+  var crow3 = div("crow");
+  var cf3 = div("cf"); cf3.style.flex="1";
+  cf3.appendChild(div("fl","Beskrivelse"));
+  var descTa = document.createElement("textarea"); descTa.rows=2; descTa.placeholder="Hvad arbejdede du på?"; descTa.className="fv"; descTa.style.marginTop="4px";
+  descTa.value=LS.desc;
+  descTa.addEventListener("input",function(){LS.desc=descTa.value; updateSubmitBtn();});
+  iosScrollOnFocus(descTa);
+  cf3.appendChild(descTa);
+  crow3.appendChild(cf3);
+  card.appendChild(crow3);
+  container.appendChild(card);
+
+  // Submit button
+  var submitBtn = document.createElement("button");
+  submitBtn.className="btnp";
+  function updateSubmitBtn() {
+    var can = LS.customer && parseH(LS.hours) && parseH(LS.rate) && LS.desc.trim();
+    submitBtn.disabled = !can || LS.loading;
+    submitBtn.innerHTML = LS.loading
+      ? '<span class="spin"></span> Sender…'
+      : ICONS.send+' Send til e-conomic';
+  }
+  updateSubmitBtn();
+  submitBtn.addEventListener("click", async function(){
+    var hours=parseH(LS.hours), rate=parseH(LS.rate);
+    if (!LS.customer) return toast("Vælg en kunde");
+    if (!hours) return toast("Angiv antal timer");
+    if (!rate) return toast("Angiv timepris");
+    if (!LS.desc.trim()) return toast("Tilføj en beskrivelse");
+    LS.loading=true; updateSubmitBtn();
+    try {
+      var dn = await API.logHours(LS.customer.number, LS.date, LS.desc.trim(), hours, rate);
+      var realH = (function(){
+        if (!LS.realFrom || !LS.realTo) return null;
+        var from=LS.realFrom.split(":").map(Number), to=LS.realTo.split(":").map(Number);
+        var mins=(to[0]*60+to[1])-(from[0]*60+from[1]);
+        return mins>0 ? Math.round(mins/6)/10 : null;
+      })();
+      S.addEntry({customerNumber:LS.customer.number, customerName:LS.customer.name, date:LS.date, description:LS.desc.trim(), hours:hours, hourlyRate:rate, draftNumber:dn, status:"sent", type:"hours", realFrom:LS.realFrom||null, realTo:LS.realTo||null, realHours:realH});
+      toast("✓ "+fmt(hours)+" timer lagt på kladde #"+dn);
+      LS.hours=""; LS.desc=""; LS.date=todayStr(); LS.realFrom=""; LS.realTo="";
+    } catch(e) {
+      toast("Fejl: "+e.message);
+    } finally {
+      LS.loading=false;
+      buildLogView(container);
+    }
+  });
+  container.appendChild(submitBtn);
+
+  // Recent entries
+  if (entries.length>0) {
+    var recWrap = div(""); recWrap.style.marginTop="28px";
+    recWrap.appendChild(div("slbl","<span>Seneste registreringer</span>"));
+    var elist = div("elist");
+    entries.forEach(function(e){
+      var entry=div("entry");
+      var ebar=div("ebar "+e.status);
+      var ebody=div("ebody");
+      var ehrs=entryIcon(e);
+      var einfo=div("einfo");
+      einfo.appendChild(div("ecli",e.customerName));
+      var d=new Date(e.date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit"});
+      var descShort=(e.description||"").slice(0,30)+((e.description||"").length>30?"…":"");
+      einfo.appendChild(div("emeta",d+" · "+descShort));
+      var eright=div("eright");
+      eright.appendChild(span("badge "+e.status, e.status==="sent"?"Sendt ✓":"Kladde"));
+      if (e.draftNumber) eright.appendChild(span("eamt","#"+e.draftNumber));
+      ebody.appendChild(ehrs); ebody.appendChild(einfo); ebody.appendChild(eright);
+      entry.appendChild(ebar); entry.appendChild(ebody);
+      elist.appendChild(entry);
+    });
+    recWrap.appendChild(elist);
+    container.appendChild(recWrap);
+  }
+}
+
+// ─── HISTORY VIEW ────────────────────────────────────────────────
+function buildHistoryView(container) {
+  container.innerHTML = "";
+  var entries = S.entries();
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Historik")); container.appendChild(vhdr);
+
+  if (entries.length===0) {
+    var empty=div("empty"); empty.appendChild(div("eico","🕐")); empty.appendChild(div("etxt","Ingen registreringer endnu.\nStart med at logge dine timer.")); container.appendChild(empty); return;
+  }
+
+  var totalH=entries.reduce(function(s,e){return s+e.hours;},0);
+  var totalAmt=entries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+
+  var sb=div("sbar"); sb.style.marginBottom="24px";
+  var s1=div("stat"); s1.appendChild(div("stat-l","Total")); s1.innerHTML+='<div class="stat-v"><strong>'+fmt(totalH)+'</strong></div><div class="stat-u">timer</div>';
+  var s2=div("stat"); s2.appendChild(div("stat-l","Faktureret")); s2.innerHTML+='<div class="stat-v" style="font-size:20px"><strong>'+totalAmt.toLocaleString("da-DK")+'</strong></div><div class="stat-u">kr ex. moms</div>';
+  var sdiv2=div("sdiv");
+  sb.appendChild(s1); sb.appendChild(sdiv2); sb.appendChild(s2);
+  container.appendChild(sb);
+
+  var groups={};
+  entries.forEach(function(e){if(!groups[e.date])groups[e.date]=[];groups[e.date].push(e);});
+  var sorted=Object.keys(groups).sort(function(a,b){return b.localeCompare(a);});
+
+  sorted.forEach(function(date){
+    var dayEntries=groups[date];
+    var dayH=dayEntries.reduce(function(s,e){return s+e.hours;},0);
+    var wrap=div(""); wrap.style.marginBottom="20px";
+    wrap.appendChild(div("slbl","<span>"+dateLabel(date)+"</span><span>"+fmt(dayH)+" t</span>"));
+    var elist=div("elist");
+    dayEntries.forEach(function(e){
+      var entry=div("entry");
+      var ebar=div("ebar "+e.status);
+      var ebody=div("ebody");
+      var ehrs=entryIcon(e);
+      var einfo=div("einfo");
+      einfo.appendChild(div("ecli",e.customerName));
+      var descShort=(e.description||"").slice(0,38)+((e.description||"").length>38?"…":"");
+      einfo.appendChild(div("emeta",descShort));
+      var eright=div("eright");
+      eright.appendChild(span("badge "+e.status,e.status==="sent"?"Sendt":"Kladde"));
+      eright.appendChild(span("eamt",(e.hours*e.hourlyRate).toLocaleString("da-DK")+" kr"));
+      ebody.appendChild(ehrs); ebody.appendChild(einfo); ebody.appendChild(eright);
+      entry.appendChild(ebar); entry.appendChild(ebody);
+      elist.appendChild(entry);
+    });
+    wrap.appendChild(elist);
+    container.appendChild(wrap);
+  });
+}
+
+// ─── DASHBOARD + INVOICES VIEW ───────────────────────────────────
+var DR = { drafts:null, lines:{}, expanded:null, loading:true, error:null };
+
+function buildDashboardStats(container) {
+  var entries = S.entries();
+  var now = new Date();
+  var curMonth = now.getMonth();
+  var curYear = now.getFullYear();
+
+  // Denne måneds tal
+  var monthEntries = entries.filter(function(e){
+    var d = new Date(e.date+"T00:00:00");
+    return d.getMonth()===curMonth && d.getFullYear()===curYear;
+  });
+  var monthHours = monthEntries.reduce(function(s,e){return s+e.hours;},0);
+  var monthReal  = monthEntries.reduce(function(s,e){return s+(e.realHours||0);},0);
+  var monthKr    = monthEntries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+
+  var MONTHS_SHORT = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+
+  // Header
+  var vhdr=div("vhdr");
+  vhdr.appendChild(div("vtitle","Dashboard"));
+  container.appendChild(vhdr);
+
+  // Måned label
+  var mLabel = MONTHS_SHORT[curMonth].toUpperCase()+" "+curYear;
+  container.appendChild(div("slbl","<span>"+mLabel+"</span>"));
+
+  // 3-kolonne stats
+  var sb = div("dash-sbar");
+  function dashStat(label, val, unit) {
+    var s = div("dash-stat");
+    s.appendChild(div("dash-stat-l", label));
+    var v = div("dash-stat-v"); v.innerHTML="<strong>"+val+"</strong>"; s.appendChild(v);
+    s.appendChild(div("dash-stat-u", unit));
+    return s;
+  }
+  sb.appendChild(dashStat("Faktureret", fmt(monthHours), "timer"));
+  sb.appendChild(div("sdiv"));
+  sb.appendChild(dashStat("Reel tid", monthReal>0 ? fmt(monthReal) : "–", "timer"));
+  sb.appendChild(div("sdiv"));
+  sb.appendChild(dashStat("Beløb", monthKr>0 ? Math.round(monthKr/1000)+"k" : "0", "kr ex. moms"));
+  container.appendChild(sb);
+
+  // Effektivitet
+  if (monthReal > 0 && monthHours > 0) {
+    var eff = Math.min(100, Math.round(monthHours / monthReal * 100));
+    container.appendChild(div("slbl","<span>Faktureringsgrad</span><span>"+eff+"%</span>"));
+    var effWrap = div(""); effWrap.style.marginBottom="20px";
+    var effBar = div("eff-bar");
+    var effFill = div("eff-fill"); effFill.style.width=eff+"%";
+    effBar.appendChild(effFill); effWrap.appendChild(effBar);
+    container.appendChild(effWrap);
+  }
+
+  // Per kunde denne måned
+  var byCustomer = {};
+  monthEntries.forEach(function(e){
+    if (!byCustomer[e.customerName]) byCustomer[e.customerName]={hours:0,kr:0};
+    byCustomer[e.customerName].hours += e.hours;
+    byCustomer[e.customerName].kr    += e.hours * e.hourlyRate;
+  });
+  var custList = Object.keys(byCustomer).sort(function(a,b){return byCustomer[b].hours-byCustomer[a].hours;});
+  if (custList.length > 0) {
+    container.appendChild(div("slbl","<span>Per kunde — "+mLabel+"</span>"));
+    var maxH = Math.max.apply(null, custList.map(function(k){return byCustomer[k].hours;}));
+    var custWrap = div(""); custWrap.style.marginBottom="20px";
+    custList.forEach(function(name){
+      var d = byCustomer[name];
+      var pct = maxH > 0 ? Math.round(d.hours/maxH*100) : 0;
+      var row = div("dash-bar-row"); row.style.cursor="pointer"; row.title="Tryk for rapport";
+      var nameEl = div("dash-bar-name"); nameEl.textContent = name; nameEl.title = name;
+      var track = div("dash-bar-track");
+      var fill = div("dash-bar-fill"); fill.style.width=pct+"%";
+      track.appendChild(fill);
+      var val = div("dash-bar-val"); val.textContent = fmt(d.hours)+"t · "+Math.round(d.kr/1000)+"k kr";
+      row.appendChild(nameEl); row.appendChild(track); row.appendChild(val);
+      (function(cName, cEntries){
+        // Find customerNumber
+        var sample = entries.filter(function(e){return e.customerName===cName;})[0];
+        var cNum = sample ? sample.customerNumber : null;
+        if (cNum) row.addEventListener("click", function(){ showRapport(cNum, cName, curMonth, curYear); });
+      })(name, monthEntries);
+      custWrap.appendChild(row);
+    });
+    container.appendChild(custWrap);
+  }
+
+  // Månedsoverblik — sidste 6 måneder
+  var monthData = [];
+  for (var i=5; i>=0; i--) {
+    var mDate = new Date(curYear, curMonth-i, 1);
+    var mM = mDate.getMonth(), mY = mDate.getFullYear();
+    var mEntries = entries.filter(function(e){
+      var d = new Date(e.date+"T00:00:00");
+      return d.getMonth()===mM && d.getFullYear()===mY;
+    });
+    var mH = mEntries.reduce(function(s,e){return s+e.hours;},0);
+    var mR = mEntries.reduce(function(s,e){return s+(e.realHours||0);},0);
+    var mK = mEntries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+    monthData.push({label:MONTHS_SHORT[mM], hours:mH, real:mR, kr:mK, isCurrent:i===0});
+  }
+  var maxMonthH = Math.max.apply(null, monthData.map(function(m){return m.hours;})) || 1;
+  container.appendChild(div("slbl","<span>Månedsoverblik</span>"));
+  var monthWrap = div(""); monthWrap.style.marginBottom="8px";
+  monthData.forEach(function(m){
+    var pct = Math.round(m.hours/maxMonthH*100);
+    var row = div("dash-month-row");
+    var lbl = div("dash-month-lbl"); lbl.textContent = m.label;
+    if (m.isCurrent) lbl.style.color = "var(--accent)";
+    var track = div("dash-month-track");
+    var fill = div("dash-month-fill"); fill.style.width=pct+"%";
+    if (m.isCurrent) fill.style.opacity="1";
+    track.appendChild(fill);
+    var hrs = div("dash-month-hrs"); hrs.textContent = m.hours>0 ? fmt(m.hours)+"t" : "–";
+    if (m.isCurrent) hrs.style.color="var(--accent)";
+    var val = div("dash-month-val"); val.textContent = m.kr>0 ? Math.round(m.kr/1000)+"k kr" : "–";
+    if (m.isCurrent) val.style.color="var(--accent)";
+    row.appendChild(lbl); row.appendChild(track); row.appendChild(hrs); row.appendChild(val);
+    monthWrap.appendChild(row);
+  });
+  container.appendChild(monthWrap);
+}
+
+function buildInvoicesView(container) {
+  container.innerHTML="";
+
+  // Dashboard øverst
+  buildDashboardStats(container);
+
+  // Divider
+  container.appendChild(div("dash-divider",""));
+
+  // Kladder sektion
+  var kladderHdr = div("slbl");
+  var kladderSpan = document.createElement("span"); kladderSpan.textContent="Fakturakladder";
+  var refreshSmall = document.createElement("button");
+  refreshSmall.style.cssText="background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase";
+  refreshSmall.textContent="↻ OPDATER";
+  refreshSmall.addEventListener("click", loadDrafts);
+  kladderHdr.appendChild(kladderSpan); kladderHdr.appendChild(refreshSmall);
+  container.appendChild(kladderHdr);
+
+  if (DR.loading) {
+    container.appendChild(div("empty",'<div class="spin-dark"></div><div class="etxt">Henter kladder…</div>'));
+    return;
+  }
+  if (DR.error) {
+    container.appendChild(div("empty",'<div class="etxt">'+DR.error+'</div>'));
+    var btn=document.createElement("button"); btn.className="btns"; btn.innerHTML=ICONS.refresh+" Prøv igen";
+    btn.addEventListener("click",loadDrafts); container.appendChild(btn); return;
+  }
+  if (!DR.drafts || DR.drafts.length===0) {
+    container.appendChild(div("empty",'<div class="eico">📄</div><div class="etxt">Ingen åbne kladder.</div>'));
+    return;
+  }
+
+  DR.drafts.forEach(function(d){
+    var dn=d.draftInvoiceNumber;
+    var isOpen=DR.expanded===dn;
+    var name=(d.recipient&&d.recipient.name)||((d.customer&&d.customer.name))||"Ukendt kunde";
+    var icard=div("icard");
+
+    var ihdr=div("ihdr");
+    var ileft=div("");
+    ileft.appendChild(div("icli",name));
+    ileft.appendChild(div("inum","Kladde #"+dn+" · "+d.date));
+    var iright=div("iright");
+    var itotWrap=div(""); itotWrap.style.textAlign="right";
+    itotWrap.appendChild(div("itot",(d.netAmount||0).toLocaleString("da-DK")+" kr"));
+    itotWrap.appendChild(div("isub","ex. moms"));
+    var ichev=div("ichev"+(isOpen?" open":"")); ichev.innerHTML=ICONS.chevron;
+    iright.appendChild(itotWrap); iright.appendChild(ichev);
+    ihdr.appendChild(ileft); ihdr.appendChild(iright);
+    ihdr.addEventListener("click",function(){
+      DR.expanded = isOpen ? null : dn;
+      if (!DR.lines[dn]) {
+        DR.lines[dn]=null;
+        var vw=document.getElementById("vwrap");
+        buildInvoicesView(vw);
+        API.getDraftLines(dn).then(function(ls){DR.lines[dn]=ls; buildInvoicesView(vw);}).catch(function(){DR.lines[dn]=[]; buildInvoicesView(vw);});
+      } else {
+        buildInvoicesView(document.getElementById("vwrap"));
+      }
+    });
+    icard.appendChild(ihdr);
+
+    if (isOpen) {
+      var lines=DR.lines[dn];
+      if (lines===null||lines===undefined) {
+        icard.appendChild(div("","<div style='padding:14px 16px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Indlæser linjer…</div>"));
+      } else if (lines.length===0) {
+        icard.appendChild(div("","<div style='padding:14px 16px;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)'>Ingen linjer</div>"));
+      } else {
+        lines.forEach(function(l){
+          var iline=div("iline");
+          iline.appendChild(span("iln","#"+l.lineNumber));
+          iline.appendChild(span("ild",l.description||""));
+          iline.appendChild(span("ilh",fmt(l.quantity||0)+"t"));
+          iline.appendChild(span("ila",((l.quantity||0)*(l.unitNetPrice||0)).toLocaleString("da-DK")+" kr"));
+          icard.appendChild(iline);
+        });
+        var iftr=div("iftr");
+        iftr.appendChild(div("itlbl","Total ex. moms"));
+        iftr.appendChild(div("itval",(d.netAmount||0).toLocaleString("da-DK")+" kr"));
+        icard.appendChild(iftr);
+      }
+    }
+    container.appendChild(icard);
+  });
+}
+
+async function loadDrafts() {
+  DR.loading=true; DR.error=null;
+  var vw=document.getElementById("vwrap");
+  buildInvoicesView(vw);
   try {
-    const key = `rl:store:${ip}`;
-    const data = await redisCmd(["INCR", key]);
-    const count = data.result;
-    if (count === 1) await redisCmd(["EXPIRE", key, ttl]);
-    return count <= max;
-  } catch (e) { return true; }
+    DR.drafts=await API.getAllDrafts();
+  } catch(e) {
+    DR.error=e.message;
+  } finally {
+    DR.loading=false;
+    buildInvoicesView(vw);
+  }
 }
-export default async function handler(req, res) {
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, x-app-key");
-  if (req.method === "OPTIONS") return res.status(200).end();
-  const appKey = req.headers["x-app-key"];
-  if (APP_KEY && appKey !== APP_KEY) {
-    return res.status(401).json({ error: "Unauthorized" });
+
+// ─── SETTINGS VIEW ───────────────────────────────────────────────
+function buildSettingsView(container) {
+  container.innerHTML="";
+  var s=S.settings(), customers=S.customers(), cfg=window.EC||{};
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Konto")); container.appendChild(vhdr);
+
+  // Opret ny kunde knap — øverst
+  var newCustBtnTop=document.createElement("button"); newCustBtnTop.className="btnp"; newCustBtnTop.style.marginBottom="24px";
+  newCustBtnTop.innerHTML='<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg> Opret ny kunde i e-conomic';
+  newCustBtnTop.addEventListener("click",function(){ showNewCustomerSheet(container); });
+  container.appendChild(newCustBtnTop);
+
+  function sgrp(rows) {
+    var g=div("sgrp");
+    rows.forEach(function(r){g.appendChild(r);});
+    return g;
   }
-  const ip = (req.headers["x-forwarded-for"] || "unknown").split(",")[0].trim();
-  const allowed = await checkRateLimit(ip, 120, 3600);
-  if (!allowed) return res.status(429).json({ error: "Too many requests" });
-  if (!REDIS_URL || !REDIS_TOKEN) {
-    return res.status(500).json({ error: "Redis ikke konfigureret" });
-  }
-  if (req.method === "GET") {
-    try {
-      const data = await redisGet(STORE_KEY);
-      return res.status(200).json(data || { entries: [], customers: [], settings: {}, notes: [] });
-    } catch (e) {
-      return res.status(500).json({ error: e.message });
+
+  container.appendChild(div("slbl","<span>Profil</span>"));
+  var nameInp=document.createElement("input"); nameInp.className="srinp"; nameInp.type="text"; nameInp.value=s.userName||""; nameInp.placeholder="Dit navn"; nameInp.style.width="180px";
+  nameInp.addEventListener("input",function(){S.setSettings({userName:nameInp.value});});
+  var initInp=document.createElement("input"); initInp.className="srinp"; initInp.type="text"; initInp.maxLength=3; initInp.value=s.userInitials||""; initInp.placeholder="MH"; initInp.style.width="60px";
+  initInp.addEventListener("input",function(){S.setSettings({userInitials:initInp.value.toUpperCase()});});
+  var r1=div("srow"); r1.appendChild(div("","<div class='srlbl'>Navn</div>")); r1.appendChild(nameInp);
+  var r2=div("srow"); r2.appendChild(div("","<div class='srlbl'>Initialer</div>")); r2.appendChild(initInp);
+  container.appendChild(sgrp([r1,r2]));
+
+  container.appendChild(div("slbl","<span>Standard timepris</span>"));
+  var rateInp=document.createElement("input"); rateInp.className="srinp"; rateInp.type="text"; rateInp.inputMode="decimal"; rateInp.value=s.defaultRate?fmt(s.defaultRate):""; rateInp.placeholder="1000"; rateInp.style.width="70px";
+  rateInp.addEventListener("input",function(){var v=parseFloat(rateInp.value.replace(",",".")); if(!isNaN(v)) S.setSettings({defaultRate:v});});
+  var rateRight=div(""); rateRight.style.cssText="display:flex;align-items:center;gap:4px";
+  rateRight.appendChild(rateInp);
+  var krSpan=document.createElement("span"); krSpan.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; krSpan.textContent="kr/t"; rateRight.appendChild(krSpan);
+  var r3=div("srow");
+  var r3left=div(""); r3left.appendChild(div("srlbl","Standardpris")); r3left.appendChild(div("srsub","Bruges hvis kunden ikke har specifik pris")); r3.appendChild(r3left); r3.appendChild(rateRight);
+  container.appendChild(sgrp([r3]));
+
+  if (customers.length>0) {
+    var syncLbl=div("slbl"); syncLbl.innerHTML="<span>Timepris per kunde</span>";
+    var syncSmall=document.createElement("button"); syncSmall.style.cssText="background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase"; syncSmall.textContent="↻ SYNC";
+    syncSmall.addEventListener("click",function(){doSync(syncSmall);});
+    syncLbl.appendChild(syncSmall);
+    container.appendChild(syncLbl);
+
+    // Vis kun første 3 kunder + søgefelt
+    var custSearch = document.createElement("input");
+    custSearch.type="text"; custSearch.placeholder="Søg kunde for at ændre timepris…";
+    custSearch.style.cssText="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font);font-size:14px;color:var(--text);outline:none;margin-bottom:8px";
+
+    var custGrp = div("sgrp");
+    container.appendChild(custSearch);
+    container.appendChild(custGrp);
+
+    function renderCustRows(filter) {
+      custGrp.innerHTML="";
+      var filtered = filter
+        ? customers.filter(function(c){ return c.name.toLowerCase().indexOf(filter.toLowerCase())>=0; })
+        : customers.slice(0,3);
+      if (filtered.length===0) {
+        var noRes = div("srow"); noRes.style.justifyContent="center";
+        noRes.appendChild(div("srsub","Ingen kunder matcher"));
+        custGrp.appendChild(noRes);
+        return;
+      }
+      filtered.forEach(function(c){
+        var cr=div("srow"); cr.style.flexWrap="nowrap";
+        var cl=div(""); cl.style.cssText="min-width:0;flex:1;margin-right:12px";
+        cl.appendChild(div("srlbl",c.name)); cl.appendChild(div("srsub","Nr. "+c.number));
+        var cright=div(""); cright.style.cssText="display:flex;align-items:center;gap:4px;flex-shrink:0";
+        var ci=document.createElement("input"); ci.className="srinp"; ci.type="text"; ci.inputMode="decimal";
+        ci.value=c.rate?fmt(c.rate):""; ci.placeholder=s.defaultRate?fmt(s.defaultRate):"Standard"; ci.style.width="70px";
+        ci.addEventListener("input",function(){var v=parseFloat(ci.value.replace(",",".")); S.setCustomerRate(c.number,isNaN(v)?null:v);});
+        var ks=document.createElement("span"); ks.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; ks.textContent="kr/t";
+        cright.appendChild(ci); cright.appendChild(ks);
+        cr.appendChild(cl); cr.appendChild(cright);
+        custGrp.appendChild(cr);
+      });
+      // Vis "og X mere" hvis ikke søgning
+      if (!filter && customers.length > 3) {
+        var more = div("srow"); more.style.cssText="justify-content:center;cursor:default";
+        more.appendChild(div("srsub","og "+(customers.length-3)+" mere — søg ovenfor"));
+        custGrp.appendChild(more);
+      }
     }
-  }
-  if (req.method === "POST") {
-    try {
-      const existing = await redisGet(STORE_KEY) || { entries: [], customers: [], settings: {}, notes: [] };
-      const body = req.body;
-      if (body.entries   !== undefined) existing.entries   = body.entries;
-      if (body.customers !== undefined) existing.customers = body.customers;
-      if (body.settings  !== undefined) existing.settings  = Object.assign({}, existing.settings, body.settings);
-      if (body.notes     !== undefined) existing.notes     = body.notes;
-      await redisSet(STORE_KEY, existing);
-      return res.status(200).json({ ok: true });
-    } catch (e) {
-      return res.status(500).json({ error: e.message });
+
+    function scrollCustIntoView() {
+      setTimeout(function(){
+        var vwrap = document.getElementById("vwrap");
+        if (!vwrap) return;
+        // Scroll så custGrp er synlig over tastaturet (ca. 300px fra bunden)
+        var grpRect = custGrp.getBoundingClientRect();
+        var vwrapRect = vwrap.getBoundingClientRect();
+        var keyboardH = 320; // estimeret tastaturhøjde på iPhone
+        var visibleBottom = window.innerHeight - keyboardH;
+        if (grpRect.bottom > visibleBottom) {
+          vwrap.scrollTop += (grpRect.bottom - visibleBottom) + 20;
+        }
+      }, 100);
     }
+
+    custSearch.addEventListener("input", function(){
+      renderCustRows(custSearch.value);
+      scrollCustIntoView();
+    });
+
+    custSearch.addEventListener("focus", function(){
+      setTimeout(scrollCustIntoView, 400);
+    });
+
+    renderCustRows("");
   }
-  return res.status(405).json({ error: "Method not allowed" });
+
+  container.appendChild(div("slbl","<span>Faktura indstillinger</span>"));
+  var prow = div("srow");
+  var prowl = div(""); prowl.appendChild(div("srlbl","Produktnummer")); prowl.appendChild(div("srsub","Varenr. på fakturalinjer (fx 2 = Konsulentydelse)"));
+  prow.appendChild(prowl);
+  var pinp = document.createElement("input"); pinp.className="srinp"; pinp.type="text"; pinp.inputMode="numeric"; pinp.value=s.productNumber||"2"; pinp.style.width="60px";
+  pinp.addEventListener("input",function(){ S.setSettings({productNumber:pinp.value}); });
+  prow.appendChild(pinp);
+  container.appendChild(sgrp([prow]));
+
+  var syncBtn=document.createElement("button"); syncBtn.className="btns"; syncBtn.innerHTML=ICONS.refresh+" Synkroniser kunder fra e-conomic";
+  syncBtn.addEventListener("click",function(){doSync(syncBtn);});
+  container.appendChild(syncBtn);
+
+  var footer=div(""); footer.style.cssText="margin-top:40px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--subtle);letter-spacing:.1em";
+  footer.textContent="TIMELOG v1.0 · e-CONOMIC INTEGRATION";
+  container.appendChild(footer);
 }
+
+
+// ─── OPRET NY KUNDE ──────────────────────────────────────────────
+function showNewCustomerSheet(container) {
+  var overlay = div("overlay");
+  var sheet = div("sheet");
+  sheet.appendChild(div("shandle",""));
+
+  var hdr = div("rapport-hdr");
+  hdr.appendChild(div("rapport-title","Opret ny kunde"));
+  var closeBtn = document.createElement("button");
+  closeBtn.className="rapport-close"; closeBtn.textContent="×";
+  closeBtn.addEventListener("click", function(){ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); document.body.style.overflow=""; });
+  hdr.appendChild(closeBtn);
+  sheet.appendChild(hdr);
+
+  // Form felter
+  var formCard = div("card"); formCard.style.marginBottom="16px";
+
+  function addField(labelTxt, placeholder, type, required) {
+    var crow = div("crow");
+    var cf = div("cf");
+    cf.appendChild(div("fl", labelTxt + (required ? " *" : "")));
+    var inp = document.createElement("input");
+    inp.type = type||"text"; inp.className="fv"; inp.placeholder=placeholder;
+    inp.style.marginTop="4px";
+    cf.appendChild(inp); crow.appendChild(cf); formCard.appendChild(crow);
+    return inp;
+  }
+
+  var nameInp    = addField("Navn", "Firmanavn", "text", true);
+  var cvrInp     = addField("CVR-nummer", "12345678", "text", false);
+  var addrInp    = addField("Adresse", "Vejnavn og nummer", "text", false);
+  var zipInp     = addField("Postnummer", "8000", "text", false);
+  var cityInp    = addField("By", "Aarhus", "text", false);
+  var emailInp   = addField("Email", "kontakt@firma.dk", "email", false);
+  var phoneInp   = addField("Telefon", "+45 12 34 56 78", "text", false);
+
+  // Timepris felt
+  var rateRow = div("crow two");
+  var rateCf = div("cf"); rateCf.appendChild(div("fl","Timepris i Timelog"));
+  var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal"; rateInp.className="fv"; rateInp.placeholder=fmt(S.settings().defaultRate||1000); rateInp.style.marginTop="4px";
+  rateCf.appendChild(rateInp);
+  var ptCf = div("cf"); ptCf.appendChild(div("fl","Betalingsbetingelse"));
+  var ptInp = document.createElement("input"); ptInp.type="text"; ptInp.inputMode="numeric"; ptInp.className="fv"; ptInp.value="1"; ptInp.placeholder="1"; ptInp.style.marginTop="4px";
+  ptCf.appendChild(ptInp);
+  rateRow.appendChild(rateCf); rateRow.appendChild(ptCf);
+  formCard.appendChild(rateRow);
+  sheet.appendChild(formCard);
+
+  // Hjælpetekst
+  var helpTxt = div(""); helpTxt.style.cssText="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:16px;line-height:1.6";
+  helpTxt.textContent="* Påkrævet. Betalingsbetingelse 1 = Netto 14 dage. Kunden oprettes i e-conomic og synkroniseres automatisk.";
+  sheet.appendChild(helpTxt);
+
+  // Opret knap
+  var createBtn = document.createElement("button");
+  createBtn.className="btnp";
+  createBtn.innerHTML='<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75"><polyline points="20 6 9 17 4 12"/></svg> Opret kunde';
+  createBtn.addEventListener("click", async function(){
+    var name = nameInp.value.trim();
+    if (!name) { toast("Navn er påkrævet"); return; }
+    var pt = parseInt(ptInp.value)||1;
+    createBtn.disabled=true; createBtn.innerHTML='<span class="spin"></span> Opretter…';
+
+    var body = {
+      name: name,
+      vatZone: { vatZoneNumber: 1 },
+      paymentTerms: { paymentTermsNumber: pt },
+      currency: "DKK"
+    };
+    if (cvrInp.value.trim())   body.corporateIdentificationNumber = cvrInp.value.trim();
+    if (addrInp.value.trim())  body.address = addrInp.value.trim();
+    if (zipInp.value.trim())   body.zip = zipInp.value.trim();
+    if (cityInp.value.trim())  body.city = cityInp.value.trim();
+    if (emailInp.value.trim()) body.email = emailInp.value.trim();
+    if (phoneInp.value.trim()) body.telephoneAndFaxNumber = phoneInp.value.trim();
+
+    try {
+      var result = await API.createCustomer(body);
+      // Gem kundens timepris lokalt
+      var rate = parseFloat(rateInp.value.replace(",","."));
+      // Sync kunder fra e-conomic så den nye dukker op
+      var cs = await API.getCustomers();
+      S.mergeCustomers(cs);
+      if (!isNaN(rate) && rate > 0) {
+        S.setCustomerRate(result.customerNumber, rate);
+      }
+      toast("✓ "+name+" oprettet som kunde #"+result.customerNumber);
+      if(overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      document.body.style.overflow="";
+      rerender();
+    } catch(e) {
+      toast("Fejl: "+e.message);
+      createBtn.disabled=false;
+      createBtn.innerHTML='<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75"><polyline points="20 6 9 17 4 12"/></svg> Opret kunde';
+    }
+  });
+  sheet.appendChild(createBtn);
+
+  overlay.appendChild(sheet);
+  overlay.addEventListener("click", function(e){ if(e.target===overlay){ if(overlay.parentNode) overlay.parentNode.removeChild(overlay); document.body.style.overflow=""; } });
+  document.body.appendChild(overlay);
+  document.body.style.overflow="hidden";
+  setTimeout(function(){ nameInp.focus(); }, 300);
+}
+
+async function doSync(btn) {
+  var origHTML=btn.innerHTML; btn.innerHTML="Synkroniserer…"; btn.disabled=true;
+  try {
+    var cs=await API.getCustomers(); S.mergeCustomers(cs);
+    toast("✓ "+cs.length+" kunder synkroniseret");
+    rerender();
+  } catch(e) {
+    toast("Fejl: "+e.message);
+    btn.innerHTML=origHTML; btn.disabled=false;
+  }
+}
+
+// ─── SCAN VIEW ───────────────────────────────────────────────────
+var SS = {
+  imageData: null,
+  imagePreview: null,
+  scanning: false,
+  result: null,
+  avancePct: 0,
+  customer: null
+};
+
+function buildScanView(container) {
+  container.innerHTML = "";
+  var customers = S.customers();
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Scan faktura")); container.appendChild(vhdr);
+
+  if (SS.scanning) {
+    var think=div("ai-thinking");
+    think.appendChild(div("spin-dark",""));
+    think.appendChild(div("ai-lbl","AI ANALYSERER FAKTURA…"));
+    container.appendChild(think);
+    return;
+  }
+
+  container.appendChild(div("slbl","<span>Foto af faktura</span>"));
+  var drop = div("scan-drop" + (SS.imagePreview ? " has-img" : ""));
+  if (SS.imagePreview) {
+    var img = document.createElement("img");
+    img.src = SS.imagePreview;
+    drop.appendChild(img);
+  } else {
+    drop.innerHTML = ICONS.camera + '<div style="font-size:14px;color:var(--muted);margin-top:4px">Tryk for at tage foto eller vælg billede</div><div style="font-family:var(--mono);font-size:10px;color:var(--subtle);margin-top:6px;letter-spacing:.08em">JPG · PNG · HEIC</div>';
+  }
+
+  var fileInput = document.createElement("input");
+  fileInput.type = "file"; fileInput.accept = "image/*"; fileInput.capture = "environment";
+  fileInput.style.display = "none";
+  fileInput.addEventListener("change", function() {
+    var file = fileInput.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      SS.imagePreview = e.target.result;
+      SS.imageData = e.target.result.split(",")[1];
+      SS.result = null;
+      buildScanView(container);
+    };
+    reader.readAsDataURL(file);
+  });
+  drop.appendChild(fileInput);
+  drop.addEventListener("click", function() { fileInput.click(); });
+  container.appendChild(drop);
+
+  if (SS.imageData && !SS.result) {
+    var analyseBtn = document.createElement("button");
+    analyseBtn.className = "btnp";
+    analyseBtn.innerHTML = ICONS.camera + " Analysér faktura med AI";
+    analyseBtn.addEventListener("click", function() { analyseFaktura(container); });
+    container.appendChild(analyseBtn);
+  }
+
+  if (SS.result) {
+    var r = SS.result;
+    container.appendChild(div("slbl","<span>Udlæste data — ret hvis nødvendigt</span>"));
+    var preview = div("scan-preview");
+
+    var sr1=div("scan-row"); sr1.style.flexDirection="column"; sr1.style.alignItems="flex-start";
+    sr1.appendChild(div("scan-lbl","Leverandør"));
+    var supInp=document.createElement("input"); supInp.className="scan-edit"; supInp.value=r.supplier||""; supInp.placeholder="Leverandørnavn";
+    supInp.addEventListener("input",function(){r.supplier=supInp.value;});
+    iosScrollOnFocus(supInp);
+    sr1.appendChild(supInp); preview.appendChild(sr1);
+
+    var sr2=div("scan-row");
+    var sr2l=div(""); sr2l.appendChild(div("scan-lbl","Dato")); sr2.appendChild(sr2l);
+    var dateInp=document.createElement("input"); dateInp.type="date"; dateInp.className="scan-edit"; dateInp.value=r.date||todayStr(); dateInp.style.width="140px";
+    dateInp.addEventListener("input",function(){r.date=dateInp.value;});
+    sr2.appendChild(dateInp); preview.appendChild(sr2);
+
+    var sr3=div("scan-row");
+    var sr3l=div(""); sr3l.appendChild(div("scan-lbl","Beløb ex. moms")); sr3.appendChild(sr3l);
+    var amtWrap=div(""); amtWrap.style.cssText="display:flex;align-items:center;gap:4px";
+    var amtInp=document.createElement("input"); amtInp.type="text"; amtInp.inputMode="decimal"; amtInp.className="scan-edit"; amtInp.value=r.amount||""; amtInp.style.width="100px"; amtInp.style.textAlign="right";
+    amtInp.addEventListener("input",function(){r.amount=amtInp.value; buildScanView(container);});
+    var krSpan=document.createElement("span"); krSpan.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted);flex-shrink:0"; krSpan.textContent="kr";
+    amtWrap.appendChild(amtInp); amtWrap.appendChild(krSpan); sr3.appendChild(amtWrap); preview.appendChild(sr3);
+
+    var sr4=div("scan-row"); sr4.style.flexDirection="column"; sr4.style.alignItems="flex-start";
+    sr4.appendChild(div("scan-lbl","Beskrivelse"));
+    var descInp=document.createElement("input"); descInp.className="scan-edit"; descInp.value=r.description||""; descInp.placeholder="Beskrivelse til fakturalinjen";
+    descInp.addEventListener("input",function(){r.description=descInp.value;});
+    iosScrollOnFocus(descInp);
+    sr4.appendChild(descInp); preview.appendChild(sr4);
+    container.appendChild(preview);
+
+    container.appendChild(div("slbl","<span>Avance / påslag</span>"));
+    var avanceCard = div("card"); avanceCard.style.marginBottom="16px";
+    var avanceInner = div(""); avanceInner.style.padding="14px 16px";
+    avanceInner.appendChild(div("fl","Påslag %"));
+    var pctPills = div("pct-pills");
+    [0,5,10,15,20,25,30].forEach(function(p) {
+      var pill = div("pct-pill" + (SS.avancePct===p?" on":""), p+"%");
+      pill.addEventListener("click", function() { SS.avancePct = p; buildScanView(container); });
+      pctPills.appendChild(pill);
+    });
+    avanceInner.appendChild(pctPills);
+    var customWrap = div(""); customWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:10px";
+    var customLbl = document.createElement("span"); customLbl.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customLbl.textContent="Andet:";
+    var customInp = document.createElement("input"); customInp.type="text"; customInp.inputMode="decimal"; customInp.placeholder="eks. 22"; customInp.style.cssText="width:60px;background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:12px;text-align:center";
+    customInp.addEventListener("input",function(){ var v=parseFloat(customInp.value.replace(",",".")); if(!isNaN(v)&&v>=0){SS.avancePct=v; buildScanView(container);} });
+    var customSuffix = document.createElement("span"); customSuffix.style.cssText="font-family:var(--mono);font-size:11px;color:var(--muted)"; customSuffix.textContent="%";
+    customWrap.appendChild(customLbl); customWrap.appendChild(customInp); customWrap.appendChild(customSuffix);
+    avanceInner.appendChild(customWrap);
+    avanceCard.appendChild(avanceInner);
+    container.appendChild(avanceCard);
+
+    var origAmt = parseFloat(String(r.amount||"0").replace(",",".")) || 0;
+    var avanceAmt = origAmt * SS.avancePct / 100;
+    var totalAmt = origAmt + avanceAmt;
+    var avBox = div("avance-row");
+    var avLeft = div("");
+    avLeft.appendChild(div("avance-left", "Originalbeløb: "+origAmt.toLocaleString("da-DK")+" kr"));
+    if (SS.avancePct > 0) avLeft.appendChild(div("avance-sub", "+"+SS.avancePct+"% = +"+avanceAmt.toLocaleString("da-DK")+" kr"));
+    avBox.appendChild(avLeft);
+    var avRight = div("");
+    avRight.appendChild(div("avance-total", totalAmt.toLocaleString("da-DK")+" kr"));
+    avRight.appendChild(div("avance-sub", "til kunden"));
+    avBox.appendChild(avRight);
+    container.appendChild(avBox);
+
+    container.appendChild(div("slbl","<span>Send til kunde</span>"));
+    var ccard = div("card"); ccard.style.marginBottom="4px";
+    var crow = div("crow"); crow.style.cursor="pointer";
+    var cf = div("cf"); cf.style.cssText="display:flex;align-items:center;justify-content:space-between";
+    var cfl = div("");
+    cfl.appendChild(div("fl","Kunde"));
+    if (SS.customer) {
+      cfl.appendChild(div("fv", SS.customer.name));
+      cfl.appendChild(div("fs","Nr. "+SS.customer.number));
+    } else {
+      var cph=div("fv ph"); cph.textContent="Vælg kunde →"; cfl.appendChild(cph);
+    }
+    var cchev=div(""); cchev.innerHTML=ICONS.chevron; cchev.style.color="var(--muted)"; cchev.style.display="flex";
+    cf.appendChild(cfl); cf.appendChild(cchev); crow.appendChild(cf); ccard.appendChild(crow);
+    crow.addEventListener("click",function(){
+      if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
+      showSheetWithSearch("Vælg kunde",customers.map(function(c){
+        return {name:c.name,sub:"Nr. "+c.number,checked:SS.customer&&SS.customer.number===c.number,onSelect:function(){SS.customer=c;buildScanView(container);}};
+      }));
+    });
+    container.appendChild(ccard);
+
+    var sendBtn = document.createElement("button");
+    sendBtn.className = "btnp"; sendBtn.style.marginTop = "16px";
+    sendBtn.disabled = !(SS.customer && r.amount && r.description);
+    sendBtn.innerHTML = ICONS.send + " Send til e-conomic";
+    sendBtn.addEventListener("click", function() { sendScanToEconomic(container, totalAmt); });
+    container.appendChild(sendBtn);
+
+    var resetBtn = document.createElement("button");
+    resetBtn.className = "btns"; resetBtn.textContent = "Scan ny faktura";
+    resetBtn.addEventListener("click", function() {
+      SS.imageData=null; SS.imagePreview=null; SS.result=null; SS.avancePct=0; SS.customer=null;
+      buildScanView(container);
+    });
+    container.appendChild(resetBtn);
+  }
+}
+
+async function compressImage(base64data) {
+  return new Promise(function(resolve) {
+    var img = new Image();
+    img.onload = function() {
+      var canvas = document.createElement("canvas");
+      var MAX_DIM = 1400;
+      var w = img.width, h = img.height;
+      if (w > h) { h = Math.round(h * MAX_DIM / w); w = MAX_DIM; }
+      else { w = Math.round(w * MAX_DIM / h); h = MAX_DIM; }
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      var quality = 0.82;
+      var result = canvas.toDataURL("image/jpeg", quality);
+      while (result.length > 800 * 1024 * 1.37 && quality > 0.4) {
+        quality -= 0.05;
+        result = canvas.toDataURL("image/jpeg", quality);
+      }
+      resolve(result.split(",")[1]);
+    };
+    img.src = "data:image/jpeg;base64," + base64data;
+  });
+}
+
+async function analyseFaktura(container) {
+  SS.scanning = true;
+  buildScanView(container);
+  try {
+    var compressed = await compressImage(SS.imageData);
+    var key = await API.getAppKey();
+    var res = await fetch("/api/scan", {
+      method: "POST",
+      headers: {"Content-Type":"application/json", "x-app-key": key||""},
+      body: JSON.stringify({imageData: compressed})
+    });
+    if (!res.ok) throw new Error("HTTP "+res.status);
+    var data = await res.json();
+    SS.result = data;
+    SS.avancePct = 20;
+  } catch(e) {
+    toast("Fejl ved analyse: "+e.message);
+  } finally {
+    SS.scanning = false;
+    buildScanView(container);
+  }
+}
+
+async function sendScanToEconomic(container, totalAmt) {
+  var r = SS.result;
+  var btn = container.querySelector(".btnp");
+  if (btn) { btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sender…'; }
+  try {
+    var desc = r.description+(r.supplier?" ("+r.supplier+")":"")+(SS.avancePct>0?" +"+SS.avancePct+"% avance":"");
+    var dn = await API.logHours(SS.customer.number, r.date||todayStr(), desc, 1, totalAmt);
+    S.addEntry({
+      customerNumber:SS.customer.number, customerName:SS.customer.name,
+      date:r.date||todayStr(), description:desc, hours:1, hourlyRate:totalAmt,
+      draftNumber:dn, status:"sent", type:"scan"
+    });
+    toast("✓ Faktura sendt til kladde #"+dn);
+    SS.imageData=null; SS.imagePreview=null; SS.result=null; SS.avancePct=0; SS.customer=null;
+    buildScanView(container);
+  } catch(e) {
+    toast("Fejl: "+e.message);
+    if (btn) { btn.disabled=false; btn.innerHTML=ICONS.send+" Send til e-conomic"; }
+  }
+}
+
+// ─── DRIVE VIEW ──────────────────────────────────────────────────
+var DS = {
+  fromAddress: "",
+  toAddress: "",
+  customer: null,
+  retur: true,
+  sats: 3.79,
+  distanceKm: null,
+  calculating: false,
+  date: todayStr(),
+  note: ""
+};
+
+function buildDriveView(container) {
+  container.innerHTML = "";
+  var customers = S.customers();
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Kørsel")); container.appendChild(vhdr);
+
+  container.appendChild(div("slbl","<span>Rute</span>"));
+  var routeCard = div("drive-card");
+
+  // Fra
+  var fromRow = div("drive-row");
+  var fromIcon = div("drive-icon"); fromIcon.innerHTML = ICONS.pin; fromRow.appendChild(fromIcon);
+  var fromContent = div("drive-content");
+  fromContent.appendChild(div("drive-lbl","Fra"));
+  var fromInp = document.createElement("input");
+  fromInp.className = "drive-inp"; fromInp.placeholder = "Din adresse"; fromInp.value = DS.fromAddress;
+  fromInp.setAttribute("autocomplete", "street-address");
+
+  var suggestBox = div("");
+  suggestBox.style.cssText = "border-top:1px solid var(--border);overflow:hidden;display:none;border-radius:0";
+
+  var _addrTimer;
+  fromInp.addEventListener("input", function(){
+    DS.fromAddress = fromInp.value;
+    DS.distanceKm = null;
+    clearTimeout(_addrTimer);
+    var q = fromInp.value.trim();
+    if (q.length < 3) { suggestBox.style.display="none"; return; }
+    _addrTimer = setTimeout(async function(){
+      try {
+        var akey = await API.getAppKey();
+        var res = await fetch("/api/autocomplete?q="+encodeURIComponent(q), {headers:{"x-app-key":akey||""}});
+        var text = await res.text();
+        var data;
+        try { data = JSON.parse(text); } catch(e) { suggestBox.style.display="none"; return; }
+        var suggestions = data.suggestions || [];
+        suggestBox.innerHTML = "";
+        if (suggestions.length === 0) { suggestBox.style.display="none"; return; }
+        suggestions.slice(0,5).forEach(function(s) {
+          var row = div("sitem"); row.style.cssText="padding:11px 14px;font-size:14px;cursor:pointer;border-bottom:1px solid var(--border)";
+          row.textContent = s;
+          row.addEventListener("mousedown", function(e){ e.preventDefault(); });
+          row.addEventListener("click", function(){
+            DS.fromAddress = s;
+            fromInp.value = s;
+            suggestBox.style.display = "none";
+          });
+          suggestBox.appendChild(row);
+        });
+        suggestBox.style.display = "block";
+      } catch(e) { suggestBox.style.display="none"; }
+    }, 400);
+  });
+  fromInp.addEventListener("blur", function(){ setTimeout(function(){ suggestBox.style.display="none"; }, 200); });
+  iosScrollOnFocus(fromInp);
+  fromContent.appendChild(fromInp);
+  fromRow.appendChild(fromContent);
+  var locBtn = document.createElement("button");
+  locBtn.className = "locate-btn"; locBtn.textContent = "📍 GPS";
+  locBtn.addEventListener("click", function(){ getMyLocation(fromInp, container); });
+  fromRow.appendChild(locBtn);
+  routeCard.appendChild(fromRow);
+  routeCard.appendChild(suggestBox);
+
+  var divRow = div(""); divRow.style.cssText = "padding:6px 16px;font-size:18px;color:var(--muted);border-bottom:1px solid var(--border)";
+  divRow.textContent = "↓";
+  routeCard.appendChild(divRow);
+
+  // Til — vælg kunde
+  var toRow = div("drive-row"); toRow.style.cursor = "pointer";
+  var toIcon = div("drive-icon"); toIcon.innerHTML = ICONS.pin;
+  toIcon.style.background = "var(--green-bg)";
+  toIcon.querySelector("svg").style.stroke = "var(--green)";
+  toRow.appendChild(toIcon);
+  var toContent = div("drive-content");
+  toContent.appendChild(div("drive-lbl","Til — vælg kunde"));
+  if (DS.customer) {
+    toContent.appendChild(div("drive-val", DS.customer.name));
+  } else {
+    var toPh = div("drive-val ph"); toPh.textContent = "Vælg kunde →"; toContent.appendChild(toPh);
+  }
+  var toChev = div(""); toChev.innerHTML = ICONS.chevron; toChev.style.cssText = "color:var(--muted);display:flex;flex-shrink:0";
+  toRow.appendChild(toContent); toRow.appendChild(toChev);
+  toRow.addEventListener("click", function(){
+    if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
+    showSheetWithSearch("Vælg destination", customers.map(function(c){
+      return {
+        name: c.name,
+        sub: c.address || "Ingen adresse — skriv manuelt nedenunder",
+        checked: DS.customer && DS.customer.number === c.number,
+        onSelect: function(){ DS.customer = c; DS.toAddress = c.address || ""; DS.distanceKm = null; buildDriveView(container); }
+      };
+    }));
+  });
+  routeCard.appendChild(toRow);
+
+  // Til-adresse
+  var toAddrRow = div("drive-row");
+  var toAddrIcon = div("drive-icon"); toAddrIcon.innerHTML = ICONS.pin;
+  toAddrIcon.style.background = "var(--bg)"; toAddrIcon.style.border = "1px solid var(--border)";
+  toAddrIcon.querySelector("svg").style.stroke = "var(--muted)";
+  toAddrRow.appendChild(toAddrIcon);
+  var toAddrContent = div("drive-content");
+  toAddrContent.appendChild(div("drive-lbl","Til-adresse"));
+  var toAddrInp = document.createElement("input");
+  toAddrInp.className = "drive-inp"; toAddrInp.placeholder = "Skriv eller ret destinationsadresse"; toAddrInp.value = DS.toAddress;
+  toAddrInp.addEventListener("input", function(){ DS.toAddress = toAddrInp.value; DS.distanceKm = null; });
+  iosScrollOnFocus(toAddrInp);
+  toAddrContent.appendChild(toAddrInp);
+  toAddrRow.appendChild(toAddrContent);
+  routeCard.appendChild(toAddrRow);
+  container.appendChild(routeCard);
+
+  // Retur toggle
+  var returRow = div("retur-row");
+  returRow.addEventListener("click", function(){ DS.retur = !DS.retur; buildDriveView(container); });
+  var returLeft = div("");
+  returLeft.appendChild(div("retur-lbl","Tur/retur"));
+  var returSub = div(""); returSub.style.cssText="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px";
+  returSub.textContent = DS.distanceKm ? fmt(DS.retur ? DS.distanceKm*2 : DS.distanceKm)+" km i alt" : "Dobbelt afstand";
+  returLeft.appendChild(returSub);
+  var tog = div("toggle"+(DS.retur?" on":""));
+  tog.appendChild(div("toggle-dot",""));
+  returRow.appendChild(returLeft); returRow.appendChild(tog);
+  container.appendChild(returRow);
+
+  // Sats
+  container.appendChild(div("slbl","<span>Kilometersats</span>"));
+  var satsCard = div("card"); satsCard.style.marginBottom="16px";
+  var satsInner = div(""); satsInner.style.padding="13px 16px";
+  satsInner.appendChild(div("fl","Vælg sats"));
+  var satsPills = div("sats-pills");
+  var isCustomSats = DS.sats !== 3.79;
+
+  var statsPill = div("sats-pill"+(DS.sats===3.79?" on":""), "Statens sats 3,79 kr/km");
+  statsPill.addEventListener("click", function(){ DS.sats = 3.79; buildDriveView(container); });
+  satsPills.appendChild(statsPill);
+
+  var customPill = div("sats-pill"+(isCustomSats?" on":""));
+  customPill.style.cssText += ";display:flex;align-items:center;gap:4px;padding:6px 10px";
+  var customLblSpan = document.createElement("span"); customLblSpan.textContent="Manuel:"; customLblSpan.style.cssText="font-size:11px;white-space:nowrap";
+  var customSatsInp = document.createElement("input");
+  customSatsInp.type="text"; customSatsInp.inputMode="decimal"; customSatsInp.placeholder="0,00";
+  customSatsInp.value = isCustomSats ? String(DS.sats).replace(".",",") : "";
+  customSatsInp.style.cssText="width:52px;background:none;border:none;outline:none;font-family:var(--mono);font-size:11px;text-align:center;color:inherit;padding:0";
+  var customSuffix = document.createElement("span"); customSuffix.textContent="kr/km"; customSuffix.style.cssText="font-size:11px;white-space:nowrap";
+  customSatsInp.addEventListener("focus", function(){ customPill.className="sats-pill on"; statsPill.className="sats-pill"; });
+  customSatsInp.addEventListener("input", function(){ var v=parseFloat(customSatsInp.value.replace(",",".")); if(!isNaN(v)&&v>0) DS.sats=v; });
+  customSatsInp.addEventListener("blur", function(){ var v=parseFloat(customSatsInp.value.replace(",",".")); if(!isNaN(v)&&v>0){DS.sats=v;}else{DS.sats=3.79;buildDriveView(container);} });
+  customPill.appendChild(customLblSpan); customPill.appendChild(customSatsInp); customPill.appendChild(customSuffix);
+  customPill.addEventListener("click", function(){ customSatsInp.focus(); });
+  satsPills.appendChild(customPill);
+  satsInner.appendChild(satsPills);
+  satsCard.appendChild(satsInner); container.appendChild(satsCard);
+
+  // Route result box
+  var routeBoxWrap = div("route-box-wrap");
+  container.appendChild(routeBoxWrap);
+
+  function updateRouteBox() {
+    routeBoxWrap.innerHTML = "";
+    if (!DS.distanceKm) return;
+    var totalKm = DS.retur ? DS.distanceKm * 2 : DS.distanceKm;
+    var totalKr = totalKm * DS.sats;
+    var box = div("route-box");
+    var top = div("route-top");
+    var kmDiv = div("route-km"); kmDiv.innerHTML = "<strong>"+fmt(totalKm)+"</strong> km";
+    var krDiv = div("route-kr"); krDiv.textContent = totalKr.toLocaleString("da-DK", {minimumFractionDigits:2, maximumFractionDigits:2})+" kr";
+    top.appendChild(kmDiv); top.appendChild(krDiv);
+    var detail = div("route-detail");
+    detail.textContent = DS.retur ? "Tur/retur · "+fmt(DS.distanceKm)+" km x2 · "+DS.sats+" kr/km" : "Enkelttur · "+fmt(DS.distanceKm)+" km · "+DS.sats+" kr/km";
+    box.appendChild(top); box.appendChild(detail);
+    routeBoxWrap.appendChild(box);
+  }
+
+  if (DS.distanceKm) updateRouteBox();
+
+  if (DS.fromAddress && DS.toAddress && !DS.distanceKm) {
+    var calcBtn = document.createElement("button");
+    calcBtn.className = "btnp"; calcBtn.style.marginBottom="16px";
+    calcBtn.innerHTML = DS.calculating ? '<span class="spin"></span> Beregner rute…' : ICONS.car+" Beregn afstand";
+    calcBtn.disabled = DS.calculating;
+    calcBtn.addEventListener("click", function(){ calculateDistance(container, updateRouteBox); });
+    container.appendChild(calcBtn);
+  }
+
+  if (DS.distanceKm) {
+    container.appendChild(div("slbl","<span>Detaljer</span>"));
+    var detCard = div("card"); detCard.style.marginBottom="16px";
+    var dateRow = div("crow two");
+    var dateCf = div("cf"); dateCf.appendChild(div("fl","Dato"));
+    var dateInp = document.createElement("input"); dateInp.type="date"; dateInp.value=DS.date; dateInp.className="fv";
+    dateInp.addEventListener("input",function(){DS.date=dateInp.value;});
+    dateCf.appendChild(dateInp);
+    var noteCf = div("cf"); noteCf.appendChild(div("fl","Note"));
+    var noteInp = document.createElement("input"); noteInp.type="text"; noteInp.className="fv"; noteInp.value=DS.note; noteInp.placeholder="Formål med kørsel";
+    noteInp.addEventListener("input",function(){DS.note=noteInp.value;});
+  iosScrollOnFocus(noteInp);
+    noteCf.appendChild(noteInp);
+    dateRow.appendChild(dateCf); dateRow.appendChild(noteCf);
+    detCard.appendChild(dateRow); container.appendChild(detCard);
+
+    var sendBtn = document.createElement("button"); sendBtn.className="btnp";
+    sendBtn.disabled = !DS.customer;
+    sendBtn.innerHTML = ICONS.send+" Send til e-conomic";
+    sendBtn.addEventListener("click", function(){ sendDriveToEconomic(container); });
+    container.appendChild(sendBtn);
+
+    var resetBtn = document.createElement("button"); resetBtn.className="btns";
+    resetBtn.textContent = "Ny kørsel";
+    resetBtn.addEventListener("click", function(){
+      DS.fromAddress=""; DS.toAddress=""; DS.customer=null; DS.distanceKm=null; DS.note=""; DS.date=todayStr();
+      buildDriveView(container);
+    });
+    container.appendChild(resetBtn);
+  }
+}
+
+function getMyLocation(inp, container) {
+  if (!navigator.geolocation) { toast("GPS ikke tilgængelig"); return; }
+  toast("Finder din placering…");
+  navigator.geolocation.getCurrentPosition(
+    async function(pos) {
+      try {
+        var lat = pos.coords.latitude, lng = pos.coords.longitude;
+        var gkey = await API.getAppKey();
+        var res = await fetch("/api/geocode?lat="+lat+"&lng="+lng, {headers:{"x-app-key":gkey||""}});
+        var data = await res.json();
+        if (data.address) {
+          DS.fromAddress = data.address;
+          inp.value = data.address;
+          DS.distanceKm = null;
+          buildDriveView(container);
+        } else { toast("Kunne ikke finde adresse"); }
+      } catch(e) { toast("GPS fejl: "+e.message); }
+    },
+    function(err) { toast("GPS afvist — skriv adressen manuelt"); }
+  );
+}
+
+async function calculateDistance(container, updateFn) {
+  DS.calculating = true;
+  buildDriveView(container);
+  try {
+    var dkey = await API.getAppKey();
+    var res = await fetch("/api/distance?from="+encodeURIComponent(DS.fromAddress)+"&to="+encodeURIComponent(DS.toAddress), {headers:{"x-app-key":dkey||""}});
+    var data = await res.json();
+    if (data.km) {
+      DS.distanceKm = data.km;
+      DS.calculating = false;
+      buildDriveView(container);
+    } else {
+      throw new Error(data.message || "Kunne ikke beregne afstand");
+    }
+  } catch(e) {
+    DS.calculating = false;
+    toast("Fejl: "+e.message);
+    buildDriveView(container);
+  }
+}
+
+async function sendDriveToEconomic(container) {
+  var totalKm = DS.retur ? DS.distanceKm * 2 : DS.distanceKm;
+  var totalKr = totalKm * DS.sats;
+  var btn = container.querySelector(".btnp");
+  if (btn) { btn.disabled=true; btn.innerHTML='<span class="spin"></span> Sender…'; }
+  try {
+    var desc = "Kørsel "+(DS.note?DS.note+" ":"")+DS.fromAddress+" → "+DS.customer.name+(DS.retur?" (t/r)":"")+" "+fmt(totalKm)+"km";
+    var dn = await API.logHours(DS.customer.number, DS.date, desc, 1, totalKr);
+    S.addEntry({
+      customerNumber:DS.customer.number, customerName:DS.customer.name,
+      date:DS.date, description:desc, hours:1, hourlyRate:totalKr,
+      draftNumber:dn, status:"sent", type:"drive"
+    });
+    toast("✓ "+fmt(totalKm)+"km sendt til kladde #"+dn);
+    DS.fromAddress=""; DS.toAddress=""; DS.customer=null; DS.distanceKm=null; DS.note=""; DS.date=todayStr();
+    buildDriveView(container);
+  } catch(e) {
+    toast("Fejl: "+e.message);
+    if (btn) { btn.disabled=false; btn.innerHTML=ICONS.send+" Send til e-conomic"; }
+  }
+}
+
+
+// ─── RAPPORT ─────────────────────────────────────────────────────
+function showRapport(customerNumber, customerName, month, year) {
+  var entries = S.entries().filter(function(e){
+    if (e.customerNumber !== customerNumber) return false;
+    var d = new Date(e.date+"T00:00:00");
+    return d.getMonth()===month && d.getFullYear()===year;
+  }).sort(function(a,b){ return a.date.localeCompare(b.date); });
+
+  var MONTHS_FULL = ["januar","februar","marts","april","maj","juni","juli","august","september","oktober","november","december"];
+
+  var overlay = div("rapport-overlay");
+  var sheet = div("rapport-sheet");
+  sheet.appendChild(div("shandle",""));
+
+  // Header
+  var hdr = div("rapport-hdr");
+  hdr.appendChild(div("rapport-title", customerName));
+  var closeBtn = document.createElement("button");
+  closeBtn.className="rapport-close"; closeBtn.textContent="×";
+  closeBtn.addEventListener("click", function(){ if(overlay.parentNode)overlay.parentNode.removeChild(overlay); document.body.style.overflow=''; });
+  hdr.appendChild(closeBtn);
+  sheet.appendChild(hdr);
+
+  // Meta
+  sheet.appendChild(div("rapport-meta", MONTHS_FULL[month]+" "+year+" · "+entries.length+" registreringer"));
+
+  if (entries.length === 0) {
+    sheet.appendChild(div("empty","<div class='etxt'>Ingen registreringer denne måned</div>"));
+  } else {
+    // Table
+    var table = document.createElement("table");
+    table.className = "rapport-table";
+
+    // Thead
+    var thead = document.createElement("thead");
+    var headRow = document.createElement("tr");
+    [["Dato",""],["Beskrivelse",""],["Reel tid","num"],["Fakt. tid","num"],["Beløb","num"]].forEach(function(h){
+      var th = document.createElement("th");
+      th.textContent = h[0];
+      if (h[1]) th.className = h[1];
+      headRow.appendChild(th);
+    });
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    // Tbody
+    var tbody = document.createElement("tbody");
+    var totalReal=0, totalBill=0, totalKrRows=0;
+    entries.forEach(function(e){
+      var tr = document.createElement("tr");
+
+      // Dato
+      var tdDate = document.createElement("td");
+      tdDate.className="date";
+      var d=new Date(e.date+"T00:00:00");
+      tdDate.textContent=d.getDate()+"."+(d.getMonth()+1)+".";
+      tr.appendChild(tdDate);
+
+      // Beskrivelse + tid
+      var tdDesc = document.createElement("td");
+      tdDesc.className="desc";
+      var descMain = div("desc-main"); descMain.textContent = e.description||"";
+      tdDesc.appendChild(descMain);
+      if (e.realFrom && e.realTo) {
+        var descTime = div("desc-time"); descTime.textContent = e.realFrom+"–"+e.realTo;
+        tdDesc.appendChild(descTime);
+      }
+      tr.appendChild(tdDesc);
+
+      var isMoneyEntry = (e.type==="drive"||e.type==="scan");
+      var entryKr = Math.round(e.hours * e.hourlyRate);
+
+      // Reel tid
+      var tdReal = document.createElement("td");
+      tdReal.className="num real";
+      tdReal.textContent = isMoneyEntry ? "–" : (e.realHours ? fmt(e.realHours)+"t" : "–");
+      if (!isMoneyEntry && e.realHours) totalReal += e.realHours;
+      tr.appendChild(tdReal);
+
+      // Faktureret timer
+      var tdBill = document.createElement("td");
+      tdBill.className="num bill";
+      tdBill.textContent = isMoneyEntry ? "–" : fmt(e.hours)+"t";
+      if (!isMoneyEntry) totalBill += e.hours;
+      tr.appendChild(tdBill);
+
+      // Beløb kr
+      var tdKr = document.createElement("td");
+      tdKr.className="num";
+      tdKr.style.fontWeight = isMoneyEntry ? "600" : "normal";
+      tdKr.style.fontSize = "11px";
+      tdKr.textContent = entryKr > 0 ? entryKr.toLocaleString("da-DK")+" kr" : "–";
+      totalKrRows += entryKr;
+      tr.appendChild(tdKr);
+
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+    sheet.appendChild(table);
+
+    // Footer totals
+    var footer = div("rapport-footer");
+    var totalKr = entries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+    var totalMoneyKr = entries.filter(function(e){return e.type==="drive"||e.type==="scan";})
+      .reduce(function(s,e){return s+Math.round(e.hours*e.hourlyRate);},0);
+    var hasMoneyEntries = entries.some(function(e){return e.type==="drive"||e.type==="scan";});
+
+    var row1 = div("rapport-footer-row");
+    row1.appendChild(div("rapport-footer-lbl","Reel tid i alt"));
+    var r1v = div("rapport-footer-val"); r1v.textContent = totalReal>0 ? fmt(totalReal)+" timer" : "–";
+    row1.appendChild(r1v);
+
+    var row2 = div("rapport-footer-row");
+    row2.appendChild(div("rapport-footer-lbl","Fakturerede timer"));
+    var r2v = div("rapport-footer-val"); r2v.textContent = totalBill>0 ? fmt(totalBill)+" timer" : "–";
+    row2.appendChild(r2v);
+
+    if (hasMoneyEntries) {
+      var rowMoney = div("rapport-footer-row");
+      rowMoney.appendChild(div("rapport-footer-lbl","Kørsel + scan"));
+      var rMoneyV = div("rapport-footer-val"); rMoneyV.textContent = totalMoneyKr.toLocaleString("da-DK")+" kr";
+      rowMoney.appendChild(rMoneyV);
+      footer.appendChild(row1); footer.appendChild(row2); footer.appendChild(rowMoney);
+    } else {
+      footer.appendChild(row1); footer.appendChild(row2);
+    }
+
+    // Kun beregn faktureringsgrad på entries der faktisk har reel tid
+    var billWithReal = entries.reduce(function(s,e){return s+(e.realHours?e.hours:0);},0);
+    if (totalReal > 0 && billWithReal > 0) {
+      var eff = Math.min(999, Math.round(billWithReal/totalReal*100));
+      var row3 = div("rapport-footer-row");
+      row3.appendChild(div("rapport-footer-lbl","Faktureringsgrad"));
+      var r3v = div("rapport-footer-val accent"); r3v.textContent = eff+"%";
+      row3.appendChild(r3v);
+    }
+
+    var row4 = div("rapport-footer-row");
+    row4.appendChild(div("rapport-footer-lbl","Beløb ex. moms"));
+    var r4v = div("rapport-footer-val big"); r4v.textContent = Math.round(totalKr).toLocaleString("da-DK")+" kr";
+    row4.appendChild(r4v);
+    // Use totalKrRows which is summed from the table rows
+    if (Math.round(totalKrRows) !== Math.round(totalKr)) {
+      // fallback — use whichever is set
+    }
+
+    // Faktureringsgrad vises kun én gang (allerede tilføjet i row3 ovenfor)
+    footer.appendChild(row4);
+    sheet.appendChild(footer);
+
+    // PDF + Del knapper
+    var pdfBtn = document.createElement("button");
+    pdfBtn.className = "btnp";
+    pdfBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg> Download PDF';
+    pdfBtn.addEventListener("click", function(){
+      try {
+        var doc = new window.jspdf.jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
+        var pageW = doc.internal.pageSize.getWidth();
+        var margin = 18;
+
+        // Header baggrund
+        doc.setFillColor(26,25,23);
+        doc.rect(0, 0, pageW, 28, "F");
+
+        // Kundenavn
+        doc.setTextColor(255,255,255);
+        doc.setFontSize(16);
+        doc.setFont("helvetica","bold");
+        doc.text(pdfSafe(customerName), margin, 13);
+
+        // Underoverskrift
+        doc.setFontSize(8);
+        doc.setFont("helvetica","normal");
+        doc.setTextColor(180,180,180);
+        var monthLabel = MONTHS_FULL[month].toUpperCase()+" "+year+" · "+entries.length+" REGISTRERINGER";
+        doc.text(monthLabel, margin, 21);
+
+        // Timelog branding øverst til højre
+        doc.setFontSize(7);
+        doc.setTextColor(120,120,120);
+        doc.text("TIMELOG", pageW-margin, 13, {align:"right"});
+
+        // Tabel data
+        function pdfSafe(str) {
+          if (!str) return "";
+          return str
+            .replace(/\u2192/g, "->")
+            .replace(/\u2190/g, "<-")
+            .replace(/\u2013/g, "-")
+            .replace(/\u2014/g, "-")
+            .replace(/\u2026/g, "...")
+            .replace(/\u00b7/g, ".")
+            .replace(/\u2713/g, "v")
+            .replace(/\u2714/g, "v")
+            .replace(/[\u0100-\uFFFF]/g, "?");
+        }
+        var tableRows = [];
+        entries.forEach(function(e){
+          var d = new Date(e.date+"T00:00:00");
+          var dato = d.getDate()+"."+(d.getMonth()+1)+".";
+          var isMoneyE = (e.type==="drive"||e.type==="scan");
+          var desc = pdfSafe(e.description||"");
+          if (e.realFrom && e.realTo && !isMoneyE) {
+            desc += "\n"+e.realFrom+"-"+e.realTo;
+
+          }
+          var realCol = isMoneyE ? "-" : (e.realHours ? fmt(e.realHours)+"t" : "-");
+          var faktCol = isMoneyE ? "-" : fmt(e.hours)+"t";
+          var krVal = Math.round(e.hours*e.hourlyRate);
+          var krCol = krVal > 0 ? krVal.toLocaleString("da-DK")+" kr" : "-";
+          tableRows.push([dato, desc, realCol, faktCol, krCol]);
+        });
+
+        doc.autoTable({
+          startY: 34,
+          margin: { left: margin, right: margin },
+          head: [["Dato","Beskrivelse","Reel tid","Fakt. tid","Beløb"]],
+          body: tableRows,
+          styles: {
+            font: "helvetica",
+            fontSize: 9,
+            cellPadding: { top:4, bottom:4, left:4, right:4 },
+            textColor: [26,25,23],
+            lineColor: [226,224,218],
+            lineWidth: 0.3
+          },
+          headStyles: {
+            fillColor: [245,244,240],
+            textColor: [140,137,128],
+            fontStyle: "normal",
+            fontSize: 7,
+            cellPadding: { top:5, bottom:5, left:4, right:4 }
+          },
+          alternateRowStyles: { fillColor: [250,250,248] },
+          columnStyles: {
+            0: { cellWidth: 12, halign:"left" },
+            1: { cellWidth: 80, halign:"left", overflow:"linebreak" },
+            2: { cellWidth: 18, halign:"right" },
+            3: { cellWidth: 18, halign:"right" },
+            4: { cellWidth: 28, halign:"right" }
+          },
+          didParseCell: function(data) {
+            if (data.section==="body" && data.column.index===4) {
+              data.cell.styles.fontStyle = "bold";
+            }
+          }
+        });
+
+        // Footer summary
+        var finalY = doc.lastAutoTable.finalY + 6;
+        doc.setDrawColor(226,224,218);
+        doc.setLineWidth(0.4);
+        doc.line(margin, finalY, pageW-margin, finalY);
+        finalY += 6;
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica","normal");
+        doc.setTextColor(140,137,128);
+
+        var summaryRows = [];
+        if (totalReal > 0) summaryRows.push(["Reel tid i alt", fmt(totalReal)+" timer"]);
+        if (totalBill > 0) summaryRows.push(["Fakturerede timer", fmt(totalBill)+" timer"]);
+        if (hasMoneyEntries) summaryRows.push(["Kørsel + scan", totalMoneyKr.toLocaleString("da-DK")+" kr"]);
+
+        summaryRows.forEach(function(row) {
+          doc.text(row[0], margin, finalY);
+          doc.text(row[1], pageW-margin, finalY, {align:"right"});
+          finalY += 5.5;
+        });
+
+        // Total beløb
+        doc.setDrawColor(226,224,218);
+        doc.line(margin, finalY, pageW-margin, finalY);
+        finalY += 6;
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(10);
+        doc.setTextColor(26,25,23);
+        doc.text("Beløb ex. moms", margin, finalY);
+        doc.text(Math.round(totalKr).toLocaleString("da-DK")+" kr", pageW-margin, finalY, {align:"right"});
+
+        // Gem / del
+        var filename = customerName.replace(/[^a-zA-Z0-9æøåÆØÅ]/g,"-")+"-"+MONTHS_FULL[month]+"-"+year+".pdf";
+        var pdfBlob = doc.output("blob");
+        if (navigator.share && navigator.canShare && navigator.canShare({files:[new File([pdfBlob],"x.pdf",{type:"application/pdf"})]})) {
+          var file = new File([pdfBlob], filename, {type:"application/pdf"});
+          navigator.share({files:[file], title: customerName+" — "+MONTHS_FULL[month]+" "+year})
+            .catch(function(err){ if(err.name!=="AbortError") doc.save(filename); });
+        } else {
+          doc.save(filename);
+        }
+      } catch(err) {
+        console.error("PDF fejl:", err);
+        toast("PDF fejl: "+err.message);
+      }
+    });
+    sheet.appendChild(pdfBtn);
+  }
+
+  overlay.appendChild(sheet);
+  overlay.addEventListener("click", function(e){ if(e.target===overlay) if(overlay.parentNode)overlay.parentNode.removeChild(overlay); document.body.style.overflow=''; });
+  overlay.addEventListener("touchend", function(e){ if(e.target===overlay) if(overlay.parentNode)overlay.parentNode.removeChild(overlay); document.body.style.overflow=''; });
+  document.body.appendChild(overlay);
+  // iOS: scroll lock
+  document.body.style.overflow="hidden";
+  var origRemove = overlay.remove.bind(overlay);
+  overlay.remove = function(){ document.body.style.overflow=""; origRemove(); };
+}
+
+
+// ─── NOTE VIEW ───────────────────────────────────────────────────
+function buildNoteView(container) {
+  container.innerHTML="";
+  var notes = S.notes();
+  var customers = S.customers();
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Notater")); container.appendChild(vhdr);
+
+  // Aktive notater øverst
+  var active = notes.filter(function(n){return !n.done;});
+  var done   = notes.filter(function(n){return n.done;});
+
+  // Tilføj nyt notat
+  container.appendChild(div("slbl","<span>Nyt notat</span>"));
+  var addCard = div("note-add-area");
+
+  // Kunde-vælger
+  var custRow = div("crow");
+  var custCf = div("cf"); custCf.style.cssText="display:flex;align-items:center;justify-content:space-between;cursor:pointer";
+  var custLeft = div("");
+  custLeft.appendChild(div("fl","Kunde"));
+  var custValDiv = div("fv ph"); custValDiv.textContent="Vælg kunde →";
+  custLeft.appendChild(custValDiv);
+  var custChev = div(""); custChev.innerHTML=ICONS.chevron; custChev.style.cssText="color:var(--muted);display:flex";
+  custCf.appendChild(custLeft); custCf.appendChild(custChev);
+  custRow.appendChild(custCf);
+  addCard.appendChild(custRow);
+
+  var selectedCustomer = null;
+  custRow.addEventListener("click", function(){
+    if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
+    showSheetWithSearch("Vælg kunde", customers.map(function(c){
+      return {name:c.name, sub:"Nr. "+c.number, checked:false, onSelect:function(){
+        selectedCustomer=c;
+        custValDiv.textContent=c.name;
+        custValDiv.className="fv";
+      }};
+    }));
+  });
+
+  // Tekst
+  var taRow = div("crow");
+  var taCf = div("cf");
+  taCf.appendChild(div("fl","Notat / påmindelse"));
+  var ta = document.createElement("textarea");
+  ta.className="note-add-ta"; ta.placeholder="Skriv dit notat her…"; ta.rows=3;
+  iosScrollOnFocus(ta);
+  taCf.appendChild(ta); taRow.appendChild(taCf); addCard.appendChild(taRow);
+  container.appendChild(addCard);
+
+  // Gem knap
+  var saveBtn = document.createElement("button"); saveBtn.className="btnp"; saveBtn.style.marginBottom="28px";
+  saveBtn.innerHTML=ICONS.plus+" Gem notat";
+  saveBtn.addEventListener("click", function(){
+    if (!selectedCustomer) return toast("Vælg en kunde");
+    var txt = ta.value.trim();
+    if (!txt) return toast("Skriv et notat");
+    S.addNote(selectedCustomer.number, selectedCustomer.name, txt);
+    toast("✓ Notat gemt");
+    buildNoteView(container);
+  });
+  container.appendChild(saveBtn);
+
+  // Åbne notater
+  if (active.length > 0) {
+    container.appendChild(div("slbl","<span>Åbne — "+active.length+"</span>"));
+    active.forEach(function(n){ container.appendChild(buildNoteItem(n, container)); });
+  }
+
+  // Løste notater
+  if (done.length > 0) {
+    container.appendChild(div("slbl","<span>Løste</span>"));
+    done.forEach(function(n){ container.appendChild(buildNoteItem(n, container)); });
+  }
+
+  if (notes.length===0) {
+    var empty=div("empty"); empty.appendChild(div("etxt","Ingen notater endnu.")); container.appendChild(empty);
+  }
+}
+
+function buildNoteItem(n, container) {
+  var item = div("note-item");
+  var hdr = div("note-item-hdr");
+  var dot = div("note-dot"+(n.done?" done":""));
+  var info = div(""); info.style.flex="1"; info.style.minWidth="0";
+  var txt = div("note-text"+(n.done?" done":"")); txt.textContent=n.text;
+  var cust = div("note-customer"); cust.textContent=n.customerName;
+  info.appendChild(txt); info.appendChild(cust);
+  var actions = div("note-actions");
+
+  // Løs/genåbn knap
+  var doneBtn = document.createElement("button");
+  doneBtn.className="note-btn done-btn"; doneBtn.title=n.done?"Genåbn":"Markér løst";
+  doneBtn.innerHTML=ICONS.check;
+  doneBtn.addEventListener("click", function(){ S.toggleNote(n.id); buildNoteView(container); });
+
+  // Slet knap
+  var delBtn = document.createElement("button");
+  delBtn.className="note-btn"; delBtn.title="Slet";
+  delBtn.innerHTML=ICONS.trash;
+  delBtn.addEventListener("click", function(){
+    S.deleteNote(n.id);
+    buildNoteView(container);
+  });
+
+  actions.appendChild(doneBtn); actions.appendChild(delBtn);
+  hdr.appendChild(dot); hdr.appendChild(info); hdr.appendChild(actions);
+  item.appendChild(hdr);
+  return item;
+}
+
+// ─── ROUTER ──────────────────────────────────────────────────────
+var VIEWS=[
+  {id:"log",     label:"Timer",    icon:"clock"},
+  {id:"scan",    label:"Scan",     icon:"camera"},
+  {id:"drive",   label:"Kørsel",   icon:"car"},
+  {id:"invoices",label:"Dashboard", icon:"file"},
+  {id:"notes",   label:"Notater",  icon:"note"}
+];
+var currentView="log";
+
+function rerender() {
+  var vw=document.getElementById("vwrap");
+  var nb=document.getElementById("navbar");
+  var inner=div("view");
+
+  if (currentView==="log")           buildLogView(inner);
+  else if (currentView==="history")  buildHistoryView(inner);
+  else if (currentView==="invoices") buildInvoicesView(inner);
+  else if (currentView==="scan")     buildScanView(inner);
+  else if (currentView==="drive")    buildDriveView(inner);
+  else if (currentView==="notes")    buildNoteView(inner);
+  else if (currentView==="settings") buildSettingsView(inner);
+
+  vw.innerHTML=""; vw.appendChild(inner);
+
+  // Opdater konto-knap
+  var kb = document.getElementById("kontoBtn");
+  if (kb) {
+    kb.innerHTML = ICONS.gear;
+    kb.className = "konto-btn" + (currentView==="settings" ? " active" : "");
+    kb.onclick = function(){ currentView="settings"; rerender(); };
+  }
+
+  nb.innerHTML="";
+  VIEWS.forEach(function(v){
+    var btn=document.createElement("button");
+    btn.className="nbtn"+(currentView===v.id?" on":"");
+    btn.innerHTML=ICONS[v.icon]+'<span class="nlbl">'+v.label+'</span>';
+    btn.addEventListener("click",function(){
+      if (currentView===v.id) return;
+      currentView=v.id;
+      if (v.id==="invoices"&&DR.drafts===null) loadDrafts();
+      else rerender();
+    });
+    nb.appendChild(btn);
+  });
+}
+
+// ─── INIT ────────────────────────────────────────────────────────
+document.addEventListener("DOMContentLoaded", async function(){
+  LS.rate = fmt(S.settings().defaultRate||1000);
+  rerender();
+
+  // Hent seneste data fra cloud i baggrunden
+  var synced = await SYNC.pull();
+  if (synced) {
+    LS.rate = fmt(S.settings().defaultRate||1000);
+    rerender();
+  }
+
+  // Periodisk sync hvert 30 sekund — holder notater og data opdateret på tværs af enheder
+  setInterval(async function(){
+    var ok = await SYNC.pull();
+    if (ok && currentView === "notes") {
+      var inner = document.getElementById("vwrap").firstChild;
+      if (inner) buildNoteView(inner);
+    }
+  }, 30000);
+});
+</script>
+</body>
+</html>

@@ -582,6 +582,26 @@ var ICONS = {
   pin:     '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'
 };
 
+// iOS keyboard scroll helper — bruges på alle input-felter der kan gemme sig bag tastaturet
+function iosScrollOnFocus(inp) {
+  if (!inp) return;
+  inp.addEventListener("focus", function(){
+    setTimeout(function(){
+      var vwrap = document.getElementById("vwrap");
+      if (!vwrap) return;
+      inp.scrollIntoView({behavior:"smooth", block:"center"});
+      setTimeout(function(){
+        var rect = inp.getBoundingClientRect();
+        var windowH = window.innerHeight;
+        // Hvis feltet er i den nedre halvdel, scroll ekstra op
+        if (rect.bottom > windowH * 0.55) {
+          vwrap.scrollTop += rect.bottom - windowH * 0.45;
+        }
+      }, 350);
+    }, 300);
+  });
+}
+
 function el(tag, attrs, children) {
   var node = document.createElement(tag);
   if (attrs) Object.keys(attrs).forEach(function(k){
@@ -873,6 +893,7 @@ function buildLogView(container) {
   var descTa = document.createElement("textarea"); descTa.rows=2; descTa.placeholder="Hvad arbejdede du på?"; descTa.className="fv"; descTa.style.marginTop="4px";
   descTa.value=LS.desc;
   descTa.addEventListener("input",function(){LS.desc=descTa.value; updateSubmitBtn();});
+  iosScrollOnFocus(descTa);
   cf3.appendChild(descTa);
   crow3.appendChild(cf3);
   card.appendChild(crow3);
@@ -1307,6 +1328,22 @@ function buildSettingsView(container) {
     }
 
     custSearch.addEventListener("input", function(){ renderCustRows(custSearch.value); });
+
+    // iOS: scroll ned så resultater ikke gemmer sig bag tastaturet
+    custSearch.addEventListener("focus", function(){
+      setTimeout(function(){
+        custSearch.scrollIntoView({behavior:"smooth", block:"start"});
+        // Ekstra scroll ned så listen er synlig over tastaturet
+        var vwrap = document.getElementById("vwrap");
+        if (vwrap) {
+          setTimeout(function(){
+            var rect = custGrp.getBoundingClientRect();
+            vwrap.scrollTop += rect.top - 120;
+          }, 350);
+        }
+      }, 300);
+    });
+
     renderCustRows("");
   }
 
@@ -1515,6 +1552,7 @@ function buildScanView(container) {
     sr1.appendChild(div("scan-lbl","Leverandør"));
     var supInp=document.createElement("input"); supInp.className="scan-edit"; supInp.value=r.supplier||""; supInp.placeholder="Leverandørnavn";
     supInp.addEventListener("input",function(){r.supplier=supInp.value;});
+    iosScrollOnFocus(supInp);
     sr1.appendChild(supInp); preview.appendChild(sr1);
 
     var sr2=div("scan-row");
@@ -1535,6 +1573,7 @@ function buildScanView(container) {
     sr4.appendChild(div("scan-lbl","Beskrivelse"));
     var descInp=document.createElement("input"); descInp.className="scan-edit"; descInp.value=r.description||""; descInp.placeholder="Beskrivelse til fakturalinjen";
     descInp.addEventListener("input",function(){r.description=descInp.value;});
+    iosScrollOnFocus(descInp);
     sr4.appendChild(descInp); preview.appendChild(sr4);
     container.appendChild(preview);
 
@@ -1748,6 +1787,7 @@ function buildDriveView(container) {
     }, 400);
   });
   fromInp.addEventListener("blur", function(){ setTimeout(function(){ suggestBox.style.display="none"; }, 200); });
+  iosScrollOnFocus(fromInp);
   fromContent.appendChild(fromInp);
   fromRow.appendChild(fromContent);
   var locBtn = document.createElement("button");
@@ -1800,6 +1840,7 @@ function buildDriveView(container) {
   var toAddrInp = document.createElement("input");
   toAddrInp.className = "drive-inp"; toAddrInp.placeholder = "Skriv eller ret destinationsadresse"; toAddrInp.value = DS.toAddress;
   toAddrInp.addEventListener("input", function(){ DS.toAddress = toAddrInp.value; DS.distanceKm = null; });
+  iosScrollOnFocus(toAddrInp);
   toAddrContent.appendChild(toAddrInp);
   toAddrRow.appendChild(toAddrContent);
   routeCard.appendChild(toAddrRow);
@@ -1889,6 +1930,7 @@ function buildDriveView(container) {
     var noteCf = div("cf"); noteCf.appendChild(div("fl","Note"));
     var noteInp = document.createElement("input"); noteInp.type="text"; noteInp.className="fv"; noteInp.value=DS.note; noteInp.placeholder="Formål med kørsel";
     noteInp.addEventListener("input",function(){DS.note=noteInp.value;});
+  iosScrollOnFocus(noteInp);
     noteCf.appendChild(noteInp);
     dateRow.appendChild(dateCf); dateRow.appendChild(noteCf);
     detCard.appendChild(dateRow); container.appendChild(detCard);

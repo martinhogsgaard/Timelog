@@ -357,8 +357,19 @@ var API = {
   },
 
   async getCustomers() {
-    var d = await this.req("/customers?pagesize=100&sort=name%20asc");
-    return (d.collection||[]).map(function(c){
+    var all = [];
+    var page = 0;
+    var pagesize = 100;
+    while (true) {
+      var d = await this.req("/customers?pagesize="+pagesize+"&skippages="+page);
+      var batch = d.collection||[];
+      all = all.concat(batch);
+      // Stop hvis vi fik færre end pagesize — ingen flere sider
+      if (batch.length < pagesize) break;
+      page++;
+    }
+    all.sort(function(a,b){ return (a.name||"").localeCompare(b.name||"","da"); });
+    return all.map(function(c){
       var parts = [];
       if (c.address) parts.push(c.address);
       if (c.zip)     parts.push(c.zip);

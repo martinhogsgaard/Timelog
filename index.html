@@ -245,9 +245,9 @@ textarea{resize:none}
 .rapport-meta{font-family:var(--mono);font-size:10px;color:var(--muted);letter-spacing:.1em;text-transform:uppercase;margin-bottom:16px}
 .rapport-table{width:100%;border-collapse:collapse;margin-bottom:16px}
 .rapport-table thead tr{border-bottom:2px solid var(--border)}
-.rapport-table thead th{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 0 8px;text-align:left;font-weight:500}
+.rapport-table thead th{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:0 0 8px 0;text-align:left;font-weight:500}
+.rapport-table thead th.num{text-align:right;padding-left:14px}
 .rapport-table thead th:last-child{text-align:right}
-.rapport-table thead th.num{text-align:right}
 .rapport-table tbody tr{border-bottom:1px solid var(--border)}
 .rapport-table tbody tr:last-child{border-bottom:none}
 .rapport-table tbody td{padding:10px 0;font-size:13px;vertical-align:top}
@@ -255,7 +255,7 @@ textarea{resize:none}
 .rapport-table tbody td.desc{color:var(--text);line-height:1.4;word-break:break-word;max-width:0;width:100%}
 .rapport-table tbody td.desc .desc-main{font-size:13px;font-weight:500;margin-bottom:2px}
 .rapport-table tbody td.desc .desc-time{font-family:var(--mono);font-size:10px;color:var(--muted)}
-.rapport-table tbody td.num{font-family:var(--mono);font-size:11px;text-align:right;white-space:nowrap;padding-left:6px;padding-top:12px;width:32px}
+.rapport-table tbody td.num{font-family:var(--mono);font-size:11px;text-align:right;white-space:nowrap;padding-left:14px;padding-top:12px;min-width:44px}
 .rapport-table tbody td.num.real{color:var(--muted)}
 .rapport-table tbody td.num.bill{color:var(--text);font-weight:500}
 .rapport-footer{background:var(--bg);border-radius:10px;padding:14px 16px;margin-bottom:16px}
@@ -2006,7 +2006,7 @@ function showRapport(customerNumber, customerName, month, year) {
         doc.setTextColor(255,255,255);
         doc.setFontSize(16);
         doc.setFont("helvetica","bold");
-        doc.text(customerName, margin, 13);
+        doc.text(pdfSafe(customerName), margin, 13);
 
         // Underoverskrift
         doc.setFontSize(8);
@@ -2021,19 +2021,32 @@ function showRapport(customerNumber, customerName, month, year) {
         doc.text("TIMELOG", pageW-margin, 13, {align:"right"});
 
         // Tabel data
+        function pdfSafe(str) {
+          if (!str) return "";
+          return str
+            .replace(/→/g, "->")   // → pil
+            .replace(/←/g, "<-")   // ← pil
+            .replace(/–/g, "-")    // – tankestreg
+            .replace(/—/g, "-")    // — tankestreg
+            .replace(/…/g, "...")  // … prikker
+            .replace(/·/g, ".")    // · prik
+            .replace(/✔/g, "v")    // ✓ check
+            .replace(/[^ -À-ÿæøåÆØÅ]/g, "?");
+        }
         var tableRows = [];
         entries.forEach(function(e){
           var d = new Date(e.date+"T00:00:00");
           var dato = d.getDate()+"."+(d.getMonth()+1)+".";
           var isMoneyE = (e.type==="drive"||e.type==="scan");
-          var desc = e.description||"";
+          var desc = pdfSafe(e.description||"");
           if (e.realFrom && e.realTo && !isMoneyE) {
             desc += "\n"+e.realFrom+"-"+e.realTo;
+
           }
-          var realCol = isMoneyE ? "–" : (e.realHours ? fmt(e.realHours)+"t" : "–");
-          var faktCol = isMoneyE ? "–" : fmt(e.hours)+"t";
+          var realCol = isMoneyE ? "-" : (e.realHours ? fmt(e.realHours)+"t" : "-");
+          var faktCol = isMoneyE ? "-" : fmt(e.hours)+"t";
           var krVal = Math.round(e.hours*e.hourlyRate);
-          var krCol = krVal > 0 ? krVal.toLocaleString("da-DK")+" kr" : "–";
+          var krCol = krVal > 0 ? krVal.toLocaleString("da-DK")+" kr" : "-";
           tableRows.push([dato, desc, realCol, faktCol, krCol]);
         });
 
@@ -2059,11 +2072,11 @@ function showRapport(customerNumber, customerName, month, year) {
           },
           alternateRowStyles: { fillColor: [250,250,248] },
           columnStyles: {
-            0: { cellWidth: 13, halign:"left" },
-            1: { cellWidth: "auto" },
-            2: { cellWidth: 16, halign:"right" },
-            3: { cellWidth: 16, halign:"right" },
-            4: { cellWidth: 26, halign:"right" }
+            0: { cellWidth: 12, halign:"left" },
+            1: { cellWidth: 80, halign:"left", overflow:"linebreak" },
+            2: { cellWidth: 18, halign:"right" },
+            3: { cellWidth: 18, halign:"right" },
+            4: { cellWidth: 28, halign:"right" }
           },
           didParseCell: function(data) {
             if (data.section==="body" && data.column.index===4) {

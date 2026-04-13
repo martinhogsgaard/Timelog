@@ -358,15 +358,20 @@ var API = {
 
   async getCustomers() {
     var all = [];
-    var page = 0;
-    var pagesize = 100;
-    while (true) {
-      var d = await this.req("/customers?pagesize="+pagesize+"&skippages="+page);
+    var url = "/customers?pagesize=100&skippages=0";
+    while (url) {
+      var d = await this.req(url);
       var batch = d.collection||[];
       all = all.concat(batch);
-      // Stop hvis vi fik færre end pagesize — ingen flere sider
-      if (batch.length < pagesize) break;
-      page++;
+      // Følg e-conomic's nextPage link hvis det findes
+      url = (d.pagination && d.pagination.nextPage)
+        ? d.pagination.nextPage.replace("https://restapi.e-conomic.com","")
+        : null;
+      // Fallback: hvis ingen nextPage men vi fik 100, prøv næste side manuelt
+      if (!url && batch.length === 100) {
+        var skip = all.length / 100;
+        url = "/customers?pagesize=100&skippages="+skip;
+      }
     }
     all.sort(function(a,b){ return (a.name||"").localeCompare(b.name||"","da"); });
     return all.map(function(c){
@@ -1222,6 +1227,12 @@ function buildSettingsView(container) {
   var s=S.settings(), customers=S.customers(), cfg=window.EC||{};
   var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Konto")); container.appendChild(vhdr);
 
+  // Opret ny kunde knap — øverst
+  var newCustBtnTop=document.createElement("button"); newCustBtnTop.className="btnp"; newCustBtnTop.style.marginBottom="24px";
+  newCustBtnTop.innerHTML='<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg> Opret ny kunde i e-conomic';
+  newCustBtnTop.addEventListener("click",function(){ showNewCustomerSheet(container); });
+  container.appendChild(newCustBtnTop);
+
   function sgrp(rows) {
     var g=div("sgrp");
     rows.forEach(function(r){g.appendChild(r);});
@@ -1248,11 +1259,19 @@ function buildSettingsView(container) {
   container.appendChild(sgrp([r3]));
 
   if (customers.length>0) {
-    var syncLbl=div("slbl"); syncLbl.innerHTML="<span>Timepris per kunde</span>";
+    // Collapsible kundliste
+    var custOpen = false;
+    var custLbl = div("slbl"); custLbl.style.cursor="pointer";
+    var custLblLeft = document.createElement("span"); custLblLeft.textContent="Timepris per kunde ("+customers.length+")";
+    var custLblRight = div(""); custLblRight.style.cssText="display:flex;align-items:center;gap:10px";
     var syncSmall=document.createElement("button"); syncSmall.style.cssText="background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase"; syncSmall.textContent="↻ SYNC";
-    syncSmall.addEventListener("click",function(){doSync(syncSmall);});
-    syncLbl.appendChild(syncSmall);
-    container.appendChild(syncLbl);
+    syncSmall.addEventListener("click",function(e){ e.stopPropagation(); doSync(syncSmall); });
+    var chevSpan = document.createElement("span"); chevSpan.style.cssText="font-family:var(--mono);font-size:10px;color:var(--muted);transition:transform .2s;display:inline-block"; chevSpan.textContent="▶";
+    custLblRight.appendChild(syncSmall); custLblRight.appendChild(chevSpan);
+    custLbl.appendChild(custLblLeft); custLbl.appendChild(custLblRight);
+    container.appendChild(custLbl);
+
+    var custGrpWrap = div(""); custGrpWrap.style.display="none";
     var crows=customers.map(function(c){
       var cr=div("srow"); cr.style.flexWrap="nowrap";
       var cl=div(""); cl.style.cssText="min-width:0;flex:1;margin-right:12px";
@@ -1265,7 +1284,14 @@ function buildSettingsView(container) {
       cr.appendChild(cl); cr.appendChild(cright);
       return cr;
     });
-    container.appendChild(sgrp(crows));
+    var grp = div("sgrp"); crows.forEach(function(r){grp.appendChild(r);}); custGrpWrap.appendChild(grp);
+    container.appendChild(custGrpWrap);
+
+    custLbl.addEventListener("click", function(){
+      custOpen = !custOpen;
+      custGrpWrap.style.display = custOpen ? "block" : "none";
+      chevSpan.style.transform = custOpen ? "rotate(90deg)" : "rotate(0deg)";
+    });
   }
 
   container.appendChild(div("slbl","<span>Faktura indstillinger</span>"));
@@ -1285,11 +1311,6 @@ function buildSettingsView(container) {
   var tok2l=div(""); tok2l.appendChild(div("srlbl","Agreement Grant Token")); tok2l.appendChild(div("srsub","ECONOMIC_AGREEMENT_TOKEN i Vercel")); tok2.appendChild(tok2l);
   tok2.appendChild(span("srval", cfg.agreementToken ? "✓ Sat" : "✗ Mangler"));
   container.appendChild(sgrp([tok1,tok2]));
-
-  var newCustBtn=document.createElement("button"); newCustBtn.className="btnp"; newCustBtn.style.marginBottom="8px";
-  newCustBtn.innerHTML='<svg viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.75"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="16" y1="11" x2="22" y2="11"/></svg> Opret ny kunde i e-conomic';
-  newCustBtn.addEventListener("click",function(){ showNewCustomerSheet(container); });
-  container.appendChild(newCustBtn);
 
   var syncBtn=document.createElement("button"); syncBtn.className="btns"; syncBtn.innerHTML=ICONS.refresh+" Synkroniser kunder fra e-conomic";
   syncBtn.addEventListener("click",function(){doSync(syncBtn);});

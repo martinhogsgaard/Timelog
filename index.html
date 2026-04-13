@@ -1259,39 +1259,55 @@ function buildSettingsView(container) {
   container.appendChild(sgrp([r3]));
 
   if (customers.length>0) {
-    // Collapsible kundliste
-    var custOpen = false;
-    var custLbl = div("slbl"); custLbl.style.cursor="pointer";
-    var custLblLeft = document.createElement("span"); custLblLeft.textContent="Timepris per kunde ("+customers.length+")";
-    var custLblRight = div(""); custLblRight.style.cssText="display:flex;align-items:center;gap:10px";
+    var syncLbl=div("slbl"); syncLbl.innerHTML="<span>Timepris per kunde</span>";
     var syncSmall=document.createElement("button"); syncSmall.style.cssText="background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase"; syncSmall.textContent="↻ SYNC";
-    syncSmall.addEventListener("click",function(e){ e.stopPropagation(); doSync(syncSmall); });
-    var chevSpan = document.createElement("span"); chevSpan.style.cssText="font-family:var(--mono);font-size:10px;color:var(--muted);transition:transform .2s;display:inline-block"; chevSpan.textContent="▶";
-    custLblRight.appendChild(syncSmall); custLblRight.appendChild(chevSpan);
-    custLbl.appendChild(custLblLeft); custLbl.appendChild(custLblRight);
-    container.appendChild(custLbl);
+    syncSmall.addEventListener("click",function(){doSync(syncSmall);});
+    syncLbl.appendChild(syncSmall);
+    container.appendChild(syncLbl);
 
-    var custGrpWrap = div(""); custGrpWrap.style.display="none";
-    var crows=customers.map(function(c){
-      var cr=div("srow"); cr.style.flexWrap="nowrap";
-      var cl=div(""); cl.style.cssText="min-width:0;flex:1;margin-right:12px";
-      cl.appendChild(div("srlbl",c.name)); cl.appendChild(div("srsub","Nr. "+c.number));
-      var cright=div(""); cright.style.cssText="display:flex;align-items:center;gap:4px;flex-shrink:0";
-      var ci=document.createElement("input"); ci.className="srinp"; ci.type="text"; ci.inputMode="decimal"; ci.value=c.rate?fmt(c.rate):""; ci.placeholder=s.defaultRate?fmt(s.defaultRate):"Standard"; ci.style.width="70px";
-      ci.addEventListener("input",function(){var v=parseFloat(ci.value.replace(",",".")); S.setCustomerRate(c.number,isNaN(v)?null:v);});
-      var ks=document.createElement("span"); ks.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; ks.textContent="kr/t";
-      cright.appendChild(ci); cright.appendChild(ks);
-      cr.appendChild(cl); cr.appendChild(cright);
-      return cr;
-    });
-    var grp = div("sgrp"); crows.forEach(function(r){grp.appendChild(r);}); custGrpWrap.appendChild(grp);
-    container.appendChild(custGrpWrap);
+    // Vis kun første 3 kunder + søgefelt
+    var custSearch = document.createElement("input");
+    custSearch.type="text"; custSearch.placeholder="Søg kunde for at ændre timepris…";
+    custSearch.style.cssText="width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:10px 14px;font-family:var(--font);font-size:14px;color:var(--text);outline:none;margin-bottom:8px";
 
-    custLbl.addEventListener("click", function(){
-      custOpen = !custOpen;
-      custGrpWrap.style.display = custOpen ? "block" : "none";
-      chevSpan.style.transform = custOpen ? "rotate(90deg)" : "rotate(0deg)";
-    });
+    var custGrp = div("sgrp");
+    container.appendChild(custSearch);
+    container.appendChild(custGrp);
+
+    function renderCustRows(filter) {
+      custGrp.innerHTML="";
+      var filtered = filter
+        ? customers.filter(function(c){ return c.name.toLowerCase().indexOf(filter.toLowerCase())>=0; })
+        : customers.slice(0,3);
+      if (filtered.length===0) {
+        var noRes = div("srow"); noRes.style.justifyContent="center";
+        noRes.appendChild(div("srsub","Ingen kunder matcher"));
+        custGrp.appendChild(noRes);
+        return;
+      }
+      filtered.forEach(function(c){
+        var cr=div("srow"); cr.style.flexWrap="nowrap";
+        var cl=div(""); cl.style.cssText="min-width:0;flex:1;margin-right:12px";
+        cl.appendChild(div("srlbl",c.name)); cl.appendChild(div("srsub","Nr. "+c.number));
+        var cright=div(""); cright.style.cssText="display:flex;align-items:center;gap:4px;flex-shrink:0";
+        var ci=document.createElement("input"); ci.className="srinp"; ci.type="text"; ci.inputMode="decimal";
+        ci.value=c.rate?fmt(c.rate):""; ci.placeholder=s.defaultRate?fmt(s.defaultRate):"Standard"; ci.style.width="70px";
+        ci.addEventListener("input",function(){var v=parseFloat(ci.value.replace(",",".")); S.setCustomerRate(c.number,isNaN(v)?null:v);});
+        var ks=document.createElement("span"); ks.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; ks.textContent="kr/t";
+        cright.appendChild(ci); cright.appendChild(ks);
+        cr.appendChild(cl); cr.appendChild(cright);
+        custGrp.appendChild(cr);
+      });
+      // Vis "og X mere" hvis ikke søgning
+      if (!filter && customers.length > 3) {
+        var more = div("srow"); more.style.cssText="justify-content:center;cursor:default";
+        more.appendChild(div("srsub","og "+(customers.length-3)+" mere — søg ovenfor"));
+        custGrp.appendChild(more);
+      }
+    }
+
+    custSearch.addEventListener("input", function(){ renderCustRows(custSearch.value); });
+    renderCustRows("");
   }
 
   container.appendChild(div("slbl","<span>Faktura indstillinger</span>"));

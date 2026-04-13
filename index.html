@@ -1874,7 +1874,7 @@ function showRapport(customerNumber, customerName, month, year) {
     // Thead
     var thead = document.createElement("thead");
     var headRow = document.createElement("tr");
-    [["Dato",""],["Beskrivelse",""],["Reel","num"],["Fakt./Beløb","num"]].forEach(function(h){
+    [["Dato",""],["Beskrivelse",""],["Reel tid","num"],["Fakt. tid","num"],["Beløb","num"]].forEach(function(h){
       var th = document.createElement("th");
       th.textContent = h[0];
       if (h[1]) th.className = h[1];
@@ -2040,7 +2040,7 @@ function showRapport(customerNumber, customerName, month, year) {
         doc.autoTable({
           startY: 34,
           margin: { left: margin, right: margin },
-          head: [["Dato","Beskrivelse","Reel tid","Faktureret"]],
+          head: [["Dato","Beskrivelse","Reel tid","Fakt. tid","Beløb"]],
           body: tableRows,
           styles: {
             font: "helvetica",

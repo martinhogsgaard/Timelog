@@ -1969,7 +1969,7 @@ function showRapport(customerNumber, customerName, month, year) {
     shareBtn.addEventListener("click", function(){
       var lines = [customerName+" — "+MONTHS_FULL[month]+" "+year, ""];
       lines.push("DATO    BESKRIVELSE                    REEL   FAKT.");
-      lines.push("─".repeat(52));
+      lines.push(new Array(53).join("-"));
       entries.forEach(function(e){
         var d=new Date(e.date+"T00:00:00");
         var dato=(d.getDate()+"."+(d.getMonth()+1)+".").padEnd(8);
@@ -1979,13 +1979,12 @@ function showRapport(customerNumber, customerName, month, year) {
         lines.push(dato+desc+real+bill);
         if (e.realFrom && e.realTo) lines.push("        "+e.realFrom+"–"+e.realTo);
       });
-      lines.push("─".repeat(52));
+      lines.push(new Array(53).join("-"));
       var totalKrFmt = totalKr.toLocaleString("da-DK")+" kr ex. moms";
       if (totalReal>0) lines.push("Reel tid i alt:      "+fmt(totalReal)+" timer");
       lines.push("Faktureret i alt:    "+fmt(totalBill)+" timer");
       lines.push("Beløb ex. moms:      "+totalKrFmt);
-      var text = lines.join("
-");
+      var text = lines.join(String.fromCharCode(10));
       if (navigator.share) {
         navigator.share({ title: customerName+" — "+MONTHS_FULL[month]+" "+year, text: text })
           .catch(function(){});

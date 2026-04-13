@@ -209,6 +209,30 @@ textarea{resize:none}
 .sats-pills{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .sats-pill{padding:6px 12px;border-radius:7px;border:1px solid var(--border);font-family:var(--mono);font-size:11px;color:var(--muted);background:var(--bg);cursor:pointer}
 .sats-pill.on{background:var(--accent);border-color:var(--accent);color:white}
+
+/* DASHBOARD */
+.dash-sbar{display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;padding:16px 0;border-bottom:1px solid var(--border);margin-bottom:20px}
+.dash-stat{padding:0 12px}
+.dash-stat:first-child{padding-left:0}
+.dash-stat:last-child{padding-right:0}
+.dash-stat-l{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+.dash-stat-v{font-size:22px;font-weight:300;letter-spacing:-.03em;line-height:1}
+.dash-stat-v strong{font-weight:600}
+.dash-stat-u{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px}
+.dash-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.dash-bar-name{font-size:12px;font-weight:500;min-width:80px;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-bar-track{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.dash-bar-fill{height:100%;background:var(--accent);border-radius:3px;transition:width .4s ease}
+.dash-bar-val{font-family:var(--mono);font-size:10px;color:var(--muted);white-space:nowrap;min-width:70px;text-align:right}
+.dash-month-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.dash-month-lbl{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:28px}
+.dash-month-track{flex:1;height:5px;background:var(--border);border-radius:3px;overflow:hidden}
+.dash-month-fill{height:100%;background:var(--accent);border-radius:3px;opacity:.7}
+.dash-month-val{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:60px;text-align:right}
+.dash-month-hrs{font-family:var(--mono);font-size:10px;color:var(--muted);min-width:36px;text-align:right}
+.dash-divider{height:1px;background:var(--border);margin:20px 0}
+.eff-bar{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px}
+.eff-fill{height:100%;border-radius:4px;background:var(--green)}
 </style>
 </head>
 <body>
@@ -470,13 +494,13 @@ function weeklySums() {
   var now = new Date();
   var day = now.getDay()||7;
   var mon = new Date(now); mon.setDate(now.getDate()-day+1); mon.setHours(0,0,0,0);
-  var t = todayStr(), today=0, week=0;
+  var t = todayStr(), today=0, week=0, todayReal=0, weekReal=0;
   entries.forEach(function(e){
     var d=new Date(e.date+"T00:00:00");
-    if (e.date===t) today+=e.hours;
-    if (d>=mon) week+=e.hours;
+    if (e.date===t) { today+=e.hours; if(e.realHours) todayReal+=e.realHours; }
+    if (d>=mon) { week+=e.hours; if(e.realHours) weekReal+=e.realHours; }
   });
-  return {today:today, week:week};
+  return {today:today, week:week, todayReal:todayReal, weekReal:weekReal};
 }
 
 var _toastTimer;
@@ -625,7 +649,9 @@ var LS = {
   desc: "",
   rate: fmt(S.settings().defaultRate||1000),
   customer: null,
-  loading: false
+  loading: false,
+  realFrom: "",
+  realTo: ""
 };
 
 // ─── LOG VIEW ────────────────────────────────────────────────────
@@ -648,13 +674,15 @@ function buildLogView(container) {
   // Stats
   var sb = div("sbar");
   var s1 = div("stat");
-  s1.appendChild(div("stat-l","I dag"));
+  s1.appendChild(div("stat-l","I dag — faktureret"));
   var sv1=div("stat-v"); sv1.innerHTML="<strong>"+fmt(sums.today)+"</strong>"; s1.appendChild(sv1);
-  s1.appendChild(div("stat-u","timer"));
+  var s1sub = sums.todayReal > 0 ? fmt(sums.todayReal)+" t reel" : "timer";
+  s1.appendChild(div("stat-u", s1sub));
   var s2 = div("stat");
   s2.appendChild(div("stat-l","Denne uge"));
   s2.appendChild(div("stat-v",fmt(sums.week)));
-  s2.appendChild(div("stat-u","timer"));
+  var s2sub = sums.weekReal > 0 ? fmt(sums.weekReal)+" t reel" : "timer";
+  s2.appendChild(div("stat-u", s2sub));
   var sdiv2 = div("sdiv");
   sb.appendChild(s1); sb.appendChild(sdiv2); sb.appendChild(s2);
   container.appendChild(sb);
@@ -712,15 +740,74 @@ function buildLogView(container) {
   crow2.appendChild(cf2a); crow2.appendChild(cf2b);
   card.appendChild(crow2);
 
-  // Hours — FIX: syncPills() fjernet
-  var hsec = div("hsec");
-  hsec.appendChild(div("fl","Antal timer"));
-  var hoursInp = document.createElement("input"); hoursInp.type="text"; hoursInp.inputMode="decimal"; hoursInp.value=LS.hours;
-  hoursInp.placeholder="Skriv antal timer, f.eks. 3,5 eller 10,5"; hoursInp.className="fv";
-  hoursInp.style.marginTop="6px"; hoursInp.style.marginBottom="12px";
-  hoursInp.addEventListener("input",function(){LS.hours=hoursInp.value; updateSubmitBtn();});
-  hsec.appendChild(hoursInp);
-  card.appendChild(hsec);
+  // Hours — to kolonner: fakturerbar + reel tid
+  var crow_hrs = div("crow two");
+
+  // Venstre: fakturerbare timer
+  var cf_bill = div("cf");
+  cf_bill.appendChild(div("fl","Fakturerbar tid"));
+  var hoursInp = document.createElement("input");
+  hoursInp.type="text"; hoursInp.inputMode="decimal"; hoursInp.value=LS.hours;
+  hoursInp.placeholder="f.eks. 7,5"; hoursInp.className="fv";
+  hoursInp.style.marginTop="4px";
+  hoursInp.addEventListener("input",function(){LS.hours=hoursInp.value; updateSubmitBtn(); updateRealDiff();});
+  cf_bill.appendChild(hoursInp);
+  // Diff label (opdateres dynamisk)
+  var diffLbl = div("fs"); diffLbl.style.marginTop="4px"; diffLbl.style.minHeight="14px";
+  cf_bill.appendChild(diffLbl);
+  crow_hrs.appendChild(cf_bill);
+
+  // Højre: reel tid (fra/til)
+  var cf_real = div("cf");
+  cf_real.appendChild(div("fl","Reel tid"));
+  var timeWrap = div(""); timeWrap.style.cssText="display:flex;align-items:center;gap:4px;margin-top:4px";
+  var fromInp = document.createElement("input");
+  fromInp.type="time"; fromInp.value=LS.realFrom; fromInp.className="fv";
+  fromInp.style.cssText="font-size:14px;width:50%;padding:0";
+  fromInp.addEventListener("input",function(){LS.realFrom=fromInp.value; updateRealDiff();});
+  var sepSpan = document.createElement("span");
+  sepSpan.textContent="–"; sepSpan.style.cssText="color:var(--muted);font-size:13px;flex-shrink:0";
+  var toInp = document.createElement("input");
+  toInp.type="time"; toInp.value=LS.realTo; toInp.className="fv";
+  toInp.style.cssText="font-size:14px;width:50%;padding:0";
+  toInp.addEventListener("input",function(){LS.realTo=toInp.value; updateRealDiff();});
+  timeWrap.appendChild(fromInp); timeWrap.appendChild(sepSpan); timeWrap.appendChild(toInp);
+  cf_real.appendChild(timeWrap);
+  var realHrsLbl = div("fs"); realHrsLbl.style.marginTop="4px"; realHrsLbl.style.minHeight="14px";
+  cf_real.appendChild(realHrsLbl);
+  crow_hrs.appendChild(cf_real);
+
+  card.appendChild(crow_hrs);
+
+  function calcRealHours() {
+    if (!LS.realFrom || !LS.realTo) return null;
+    var from = LS.realFrom.split(":").map(Number);
+    var to = LS.realTo.split(":").map(Number);
+    var mins = (to[0]*60+to[1]) - (from[0]*60+from[1]);
+    if (mins <= 0) return null;
+    return Math.round(mins / 6) / 10; // afrund til 1 decimal
+  }
+
+  function updateRealDiff() {
+    var real = calcRealHours();
+    var billed = parseH(LS.hours);
+    if (real !== null) {
+      realHrsLbl.textContent = fmt(real) + " t i alt";
+      if (billed !== null) {
+        var diff = Math.round((real - billed) * 10) / 10;
+        if (diff > 0) diffLbl.textContent = diff + " t ikke-fakt.";
+        else if (diff < 0) diffLbl.textContent = "OBS: mere fakt. end reel";
+        else diffLbl.textContent = "100% faktureret";
+        diffLbl.style.color = diff > 0 ? "var(--muted)" : diff < 0 ? "#c0392b" : "var(--green)";
+      } else {
+        diffLbl.textContent = "";
+      }
+    } else {
+      realHrsLbl.textContent = "";
+      diffLbl.textContent = "";
+    }
+  }
+  updateRealDiff();
 
   // Description
   var crow3 = div("crow");
@@ -754,9 +841,15 @@ function buildLogView(container) {
     LS.loading=true; updateSubmitBtn();
     try {
       var dn = await API.logHours(LS.customer.number, LS.date, LS.desc.trim(), hours, rate);
-      S.addEntry({customerNumber:LS.customer.number, customerName:LS.customer.name, date:LS.date, description:LS.desc.trim(), hours:hours, hourlyRate:rate, draftNumber:dn, status:"sent", type:"hours"});
+      var realH = (function(){
+        if (!LS.realFrom || !LS.realTo) return null;
+        var from=LS.realFrom.split(":").map(Number), to=LS.realTo.split(":").map(Number);
+        var mins=(to[0]*60+to[1])-(from[0]*60+from[1]);
+        return mins>0 ? Math.round(mins/6)/10 : null;
+      })();
+      S.addEntry({customerNumber:LS.customer.number, customerName:LS.customer.name, date:LS.date, description:LS.desc.trim(), hours:hours, hourlyRate:rate, draftNumber:dn, status:"sent", type:"hours", realFrom:LS.realFrom||null, realTo:LS.realTo||null, realHours:realH});
       toast("✓ "+fmt(hours)+" timer lagt på kladde #"+dn);
-      LS.hours=""; LS.desc=""; LS.date=todayStr();
+      LS.hours=""; LS.desc=""; LS.date=todayStr(); LS.realFrom=""; LS.realTo="";
     } catch(e) {
       toast("Fejl: "+e.message);
     } finally {
@@ -844,15 +937,146 @@ function buildHistoryView(container) {
   });
 }
 
-// ─── INVOICES VIEW ───────────────────────────────────────────────
+// ─── DASHBOARD + INVOICES VIEW ───────────────────────────────────
 var DR = { drafts:null, lines:{}, expanded:null, loading:true, error:null };
+
+function buildDashboardStats(container) {
+  var entries = S.entries();
+  var now = new Date();
+  var curMonth = now.getMonth();
+  var curYear = now.getFullYear();
+
+  // Denne måneds tal
+  var monthEntries = entries.filter(function(e){
+    var d = new Date(e.date+"T00:00:00");
+    return d.getMonth()===curMonth && d.getFullYear()===curYear;
+  });
+  var monthHours = monthEntries.reduce(function(s,e){return s+e.hours;},0);
+  var monthReal  = monthEntries.reduce(function(s,e){return s+(e.realHours||0);},0);
+  var monthKr    = monthEntries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+
+  var MONTHS_SHORT = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+
+  // Header
+  var vhdr=div("vhdr");
+  vhdr.appendChild(div("vtitle","Dashboard"));
+  container.appendChild(vhdr);
+
+  // Måned label
+  var mLabel = MONTHS_SHORT[curMonth].toUpperCase()+" "+curYear;
+  container.appendChild(div("slbl","<span>"+mLabel+"</span>"));
+
+  // 3-kolonne stats
+  var sb = div("dash-sbar");
+  function dashStat(label, val, unit) {
+    var s = div("dash-stat");
+    s.appendChild(div("dash-stat-l", label));
+    var v = div("dash-stat-v"); v.innerHTML="<strong>"+val+"</strong>"; s.appendChild(v);
+    s.appendChild(div("dash-stat-u", unit));
+    return s;
+  }
+  sb.appendChild(dashStat("Faktureret", fmt(monthHours), "timer"));
+  sb.appendChild(div("sdiv"));
+  sb.appendChild(dashStat("Reel tid", monthReal>0 ? fmt(monthReal) : "–", "timer"));
+  sb.appendChild(div("sdiv"));
+  sb.appendChild(dashStat("Beløb", monthKr>0 ? Math.round(monthKr/1000)+"k" : "0", "kr ex. moms"));
+  container.appendChild(sb);
+
+  // Effektivitet
+  if (monthReal > 0 && monthHours > 0) {
+    var eff = Math.min(100, Math.round(monthHours / monthReal * 100));
+    container.appendChild(div("slbl","<span>Faktureringsgrad</span><span>"+eff+"%</span>"));
+    var effWrap = div(""); effWrap.style.marginBottom="20px";
+    var effBar = div("eff-bar");
+    var effFill = div("eff-fill"); effFill.style.width=eff+"%";
+    effBar.appendChild(effFill); effWrap.appendChild(effBar);
+    container.appendChild(effWrap);
+  }
+
+  // Per kunde denne måned
+  var byCustomer = {};
+  monthEntries.forEach(function(e){
+    if (!byCustomer[e.customerName]) byCustomer[e.customerName]={hours:0,kr:0};
+    byCustomer[e.customerName].hours += e.hours;
+    byCustomer[e.customerName].kr    += e.hours * e.hourlyRate;
+  });
+  var custList = Object.keys(byCustomer).sort(function(a,b){return byCustomer[b].hours-byCustomer[a].hours;});
+  if (custList.length > 0) {
+    container.appendChild(div("slbl","<span>Per kunde — "+mLabel+"</span>"));
+    var maxH = Math.max.apply(null, custList.map(function(k){return byCustomer[k].hours;}));
+    var custWrap = div(""); custWrap.style.marginBottom="20px";
+    custList.forEach(function(name){
+      var d = byCustomer[name];
+      var pct = maxH > 0 ? Math.round(d.hours/maxH*100) : 0;
+      var row = div("dash-bar-row");
+      var nameEl = div("dash-bar-name"); nameEl.textContent = name; nameEl.title = name;
+      var track = div("dash-bar-track");
+      var fill = div("dash-bar-fill"); fill.style.width=pct+"%";
+      track.appendChild(fill);
+      var val = div("dash-bar-val"); val.textContent = fmt(d.hours)+"t · "+Math.round(d.kr/1000)+"k kr";
+      row.appendChild(nameEl); row.appendChild(track); row.appendChild(val);
+      custWrap.appendChild(row);
+    });
+    container.appendChild(custWrap);
+  }
+
+  // Månedsoverblik — sidste 6 måneder
+  var monthData = [];
+  for (var i=5; i>=0; i--) {
+    var mDate = new Date(curYear, curMonth-i, 1);
+    var mM = mDate.getMonth(), mY = mDate.getFullYear();
+    var mEntries = entries.filter(function(e){
+      var d = new Date(e.date+"T00:00:00");
+      return d.getMonth()===mM && d.getFullYear()===mY;
+    });
+    var mH = mEntries.reduce(function(s,e){return s+e.hours;},0);
+    var mR = mEntries.reduce(function(s,e){return s+(e.realHours||0);},0);
+    var mK = mEntries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+    monthData.push({label:MONTHS_SHORT[mM], hours:mH, real:mR, kr:mK, isCurrent:i===0});
+  }
+  var maxMonthH = Math.max.apply(null, monthData.map(function(m){return m.hours;})) || 1;
+  container.appendChild(div("slbl","<span>Månedsoverblik</span>"));
+  var monthWrap = div(""); monthWrap.style.marginBottom="8px";
+  monthData.forEach(function(m){
+    var pct = Math.round(m.hours/maxMonthH*100);
+    var row = div("dash-month-row");
+    var lbl = div("dash-month-lbl"); lbl.textContent = m.label;
+    if (m.isCurrent) lbl.style.color = "var(--accent)";
+    var track = div("dash-month-track");
+    var fill = div("dash-month-fill"); fill.style.width=pct+"%";
+    if (m.isCurrent) fill.style.opacity="1";
+    track.appendChild(fill);
+    var hrs = div("dash-month-hrs"); hrs.textContent = m.hours>0 ? fmt(m.hours)+"t" : "–";
+    if (m.isCurrent) hrs.style.color="var(--accent)";
+    var val = div("dash-month-val"); val.textContent = m.kr>0 ? Math.round(m.kr/1000)+"k kr" : "–";
+    if (m.isCurrent) val.style.color="var(--accent)";
+    row.appendChild(lbl); row.appendChild(track); row.appendChild(hrs); row.appendChild(val);
+    monthWrap.appendChild(row);
+  });
+  container.appendChild(monthWrap);
+}
 
 function buildInvoicesView(container) {
   container.innerHTML="";
-  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Fakturakladder")); container.appendChild(vhdr);
+
+  // Dashboard øverst
+  buildDashboardStats(container);
+
+  // Divider
+  container.appendChild(div("dash-divider",""));
+
+  // Kladder sektion
+  var kladderHdr = div("slbl");
+  var kladderSpan = document.createElement("span"); kladderSpan.textContent="Fakturakladder";
+  var refreshSmall = document.createElement("button");
+  refreshSmall.style.cssText="background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--accent);letter-spacing:.1em;text-transform:uppercase";
+  refreshSmall.textContent="↻ OPDATER";
+  refreshSmall.addEventListener("click", loadDrafts);
+  kladderHdr.appendChild(kladderSpan); kladderHdr.appendChild(refreshSmall);
+  container.appendChild(kladderHdr);
 
   if (DR.loading) {
-    container.appendChild(div("empty",'<div class="spin-dark"></div><div class="etxt">Henter kladder fra e-conomic…</div>'));
+    container.appendChild(div("empty",'<div class="spin-dark"></div><div class="etxt">Henter kladder…</div>'));
     return;
   }
   if (DR.error) {
@@ -861,12 +1085,9 @@ function buildInvoicesView(container) {
     btn.addEventListener("click",loadDrafts); container.appendChild(btn); return;
   }
   if (!DR.drafts || DR.drafts.length===0) {
-    container.appendChild(div("empty",'<div class="eico">📄</div><div class="etxt">Ingen åbne kladder endnu.</div>'));
-    var btn2=document.createElement("button"); btn2.className="btns"; btn2.innerHTML=ICONS.refresh+" Hent fra e-conomic";
-    btn2.addEventListener("click",loadDrafts); container.appendChild(btn2); return;
+    container.appendChild(div("empty",'<div class="eico">📄</div><div class="etxt">Ingen åbne kladder.</div>'));
+    return;
   }
-
-  container.appendChild(div("slbl","<span>"+DR.drafts.length+" åbne kladder</span>"));
 
   DR.drafts.forEach(function(d){
     var dn=d.draftInvoiceNumber;
@@ -921,10 +1142,6 @@ function buildInvoicesView(container) {
     }
     container.appendChild(icard);
   });
-
-  var refreshBtn=document.createElement("button"); refreshBtn.className="btns"; refreshBtn.innerHTML=ICONS.refresh+" Opdater fra e-conomic";
-  refreshBtn.addEventListener("click",loadDrafts);
-  container.appendChild(refreshBtn);
 }
 
 async function loadDrafts() {
@@ -1587,7 +1804,7 @@ var VIEWS=[
   {id:"log",     label:"Timer",    icon:"clock"},
   {id:"scan",    label:"Scan",     icon:"camera"},
   {id:"drive",   label:"Kørsel",   icon:"car"},
-  {id:"invoices",label:"Kladder",  icon:"file"},
+  {id:"invoices",label:"Dashboard", icon:"file"},
   {id:"settings",label:"Konto",    icon:"user"}
 ];
 var currentView="log";

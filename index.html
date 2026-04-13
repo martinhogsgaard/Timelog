@@ -183,6 +183,26 @@ textarea{resize:none}
 .ai-thinking .spin-dark{width:32px;height:32px}
 .ai-lbl{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em}
 
+/* KONTO KNAP I HEADER */
+.konto-btn{position:absolute;top:max(52px,env(safe-area-inset-top));right:20px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:10}
+.konto-btn svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
+.konto-btn.active svg{stroke:var(--accent)}
+
+/* NOTATER */
+.note-item{background:var(--white);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:8px}
+.note-item-hdr{display:flex;align-items:center;padding:12px 14px;gap:10px}
+.note-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.note-dot.done{background:var(--green)}
+.note-text{flex:1;font-size:14px;font-weight:500;line-height:1.4}
+.note-text.done{color:var(--muted);text-decoration:line-through;font-weight:400}
+.note-customer{font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px}
+.note-actions{display:flex;gap:6px;flex-shrink:0}
+.note-btn{background:none;border:1px solid var(--border);border-radius:7px;padding:5px 8px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.note-btn svg{width:14px;height:14px;fill:none;stroke:var(--muted);stroke-width:1.6}
+.note-btn.done-btn svg{stroke:var(--green)}
+.note-add-area{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:16px}
+.note-add-ta{width:100%;background:none;border:none;outline:none;font-family:var(--font);font-size:15px;color:var(--text);padding:13px 16px;resize:none;min-height:80px}
+
 /* DRIVE VIEW */
 .drive-card{background:var(--white);border:1px solid var(--border);border-radius:var(--r);overflow:visible;margin-bottom:16px}
 .drive-row{display:flex;align-items:center;padding:13px 16px;border-bottom:1px solid var(--border);gap:12px}
@@ -309,6 +329,19 @@ var S = {
   },
   setCustomerRate: function(num,rate){
     this.setCustomers(this.customers().map(function(c){return c.number===num?Object.assign({},c,{rate:rate}):c;}));
+  },
+  notes: function(){return this.g("tl_n",[]);},
+  setNotes: function(v){this.s("tl_n",v); SYNC.push({notes:v});},
+  addNote: function(customerNumber, customerName, text){
+    var note={id:Date.now().toString(), createdAt:new Date().toISOString(), customerNumber:customerNumber, customerName:customerName, text:text, done:false};
+    this.setNotes([note].concat(this.notes()));
+    return note;
+  },
+  toggleNote: function(id){
+    this.setNotes(this.notes().map(function(n){return n.id===id?Object.assign({},n,{done:!n.done}):n;}));
+  },
+  deleteNote: function(id){
+    this.setNotes(this.notes().filter(function(n){return n.id!==id;}));
   }
 };
 
@@ -486,6 +519,7 @@ var SYNC = {
       if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
       if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
       if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
+      if (data.notes     && data.notes.length     > 0) localStorage.setItem("tl_n", JSON.stringify(data.notes));
       return true;
     } catch(e) {
       console.warn("Sync pull fejl:", e.message);
@@ -579,7 +613,12 @@ var ICONS = {
   chevron: '<svg viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg>',
   camera:  '<svg viewBox="0 0 24 24"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>',
   car:     '<svg viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h1l2-4h12l2 4h1a2 2 0 012 2v6a2 2 0 01-2 2h-2"/><circle cx="7" cy="17" r="2"/><circle cx="17" cy="17" r="2"/><path d="M7 15h10"/></svg>',
-  pin:     '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>'
+  pin:     '<svg viewBox="0 0 24 24"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+  note:    '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>',
+  gear:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>',
+  plus:    '<svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  check:   '<svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+  trash:   '<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6M10 11v6M14 11v6M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>'
 };
 
 // iOS keyboard scroll helper — bruges på alle input-felter der kan gemme sig bag tastaturet
@@ -2335,13 +2374,124 @@ function showRapport(customerNumber, customerName, month, year) {
   overlay.remove = function(){ document.body.style.overflow=""; origRemove(); };
 }
 
+
+// ─── NOTE VIEW ───────────────────────────────────────────────────
+function buildNoteView(container) {
+  container.innerHTML="";
+  var notes = S.notes();
+  var customers = S.customers();
+  var vhdr=div("vhdr"); vhdr.appendChild(div("vtitle","Notater")); container.appendChild(vhdr);
+
+  // Aktive notater øverst
+  var active = notes.filter(function(n){return !n.done;});
+  var done   = notes.filter(function(n){return n.done;});
+
+  // Tilføj nyt notat
+  container.appendChild(div("slbl","<span>Nyt notat</span>"));
+  var addCard = div("note-add-area");
+
+  // Kunde-vælger
+  var custRow = div("crow");
+  var custCf = div("cf"); custCf.style.cssText="display:flex;align-items:center;justify-content:space-between;cursor:pointer";
+  var custLeft = div("");
+  custLeft.appendChild(div("fl","Kunde"));
+  var custValDiv = div("fv ph"); custValDiv.textContent="Vælg kunde →";
+  custLeft.appendChild(custValDiv);
+  var custChev = div(""); custChev.innerHTML=ICONS.chevron; custChev.style.cssText="color:var(--muted);display:flex";
+  custCf.appendChild(custLeft); custCf.appendChild(custChev);
+  custRow.appendChild(custCf);
+  addCard.appendChild(custRow);
+
+  var selectedCustomer = null;
+  custRow.addEventListener("click", function(){
+    if (customers.length===0){toast("Synkroniser kunder i Konto først");return;}
+    showSheetWithSearch("Vælg kunde", customers.map(function(c){
+      return {name:c.name, sub:"Nr. "+c.number, checked:false, onSelect:function(){
+        selectedCustomer=c;
+        custValDiv.textContent=c.name;
+        custValDiv.className="fv";
+      }};
+    }));
+  });
+
+  // Tekst
+  var taRow = div("crow");
+  var taCf = div("cf");
+  taCf.appendChild(div("fl","Notat / påmindelse"));
+  var ta = document.createElement("textarea");
+  ta.className="note-add-ta"; ta.placeholder="Skriv dit notat her…"; ta.rows=3;
+  iosScrollOnFocus(ta);
+  taCf.appendChild(ta); taRow.appendChild(taCf); addCard.appendChild(taRow);
+  container.appendChild(addCard);
+
+  // Gem knap
+  var saveBtn = document.createElement("button"); saveBtn.className="btnp"; saveBtn.style.marginBottom="28px";
+  saveBtn.innerHTML=ICONS.plus+" Gem notat";
+  saveBtn.addEventListener("click", function(){
+    if (!selectedCustomer) return toast("Vælg en kunde");
+    var txt = ta.value.trim();
+    if (!txt) return toast("Skriv et notat");
+    S.addNote(selectedCustomer.number, selectedCustomer.name, txt);
+    toast("✓ Notat gemt");
+    buildNoteView(container);
+  });
+  container.appendChild(saveBtn);
+
+  // Åbne notater
+  if (active.length > 0) {
+    container.appendChild(div("slbl","<span>Åbne — "+active.length+"</span>"));
+    active.forEach(function(n){ container.appendChild(buildNoteItem(n, container)); });
+  }
+
+  // Løste notater
+  if (done.length > 0) {
+    container.appendChild(div("slbl","<span>Løste</span>"));
+    done.forEach(function(n){ container.appendChild(buildNoteItem(n, container)); });
+  }
+
+  if (notes.length===0) {
+    var empty=div("empty"); empty.appendChild(div("etxt","Ingen notater endnu.")); container.appendChild(empty);
+  }
+}
+
+function buildNoteItem(n, container) {
+  var item = div("note-item");
+  var hdr = div("note-item-hdr");
+  var dot = div("note-dot"+(n.done?" done":""));
+  var info = div(""); info.style.flex="1"; info.style.minWidth="0";
+  var txt = div("note-text"+(n.done?" done":"")); txt.textContent=n.text;
+  var cust = div("note-customer"); cust.textContent=n.customerName;
+  info.appendChild(txt); info.appendChild(cust);
+  var actions = div("note-actions");
+
+  // Løs/genåbn knap
+  var doneBtn = document.createElement("button");
+  doneBtn.className="note-btn done-btn"; doneBtn.title=n.done?"Genåbn":"Markér løst";
+  doneBtn.innerHTML=ICONS.check;
+  doneBtn.addEventListener("click", function(){ S.toggleNote(n.id); buildNoteView(container); });
+
+  // Slet knap
+  var delBtn = document.createElement("button");
+  delBtn.className="note-btn"; delBtn.title="Slet";
+  delBtn.innerHTML=ICONS.trash;
+  delBtn.addEventListener("click", function(){
+    S.deleteNote(n.id);
+    buildNoteView(container);
+  });
+
+  actions.appendChild(doneBtn); actions.appendChild(delBtn);
+  hdr.appendChild(dot); hdr.appendChild(info); hdr.appendChild(actions);
+  item.appendChild(hdr);
+  return item;
+}
+
 // ─── ROUTER ──────────────────────────────────────────────────────
 var VIEWS=[
   {id:"log",     label:"Timer",    icon:"clock"},
   {id:"scan",    label:"Scan",     icon:"camera"},
   {id:"drive",   label:"Kørsel",   icon:"car"},
   {id:"invoices",label:"Dashboard", icon:"file"},
-  {id:"settings",label:"Konto",    icon:"user"}
+  {id:"notes",   label:"Notater",  icon:"note"}
 ];
 var currentView="log";
 
@@ -2355,9 +2505,18 @@ function rerender() {
   else if (currentView==="invoices") buildInvoicesView(inner);
   else if (currentView==="scan")     buildScanView(inner);
   else if (currentView==="drive")    buildDriveView(inner);
+  else if (currentView==="notes")    buildNoteView(inner);
   else if (currentView==="settings") buildSettingsView(inner);
 
   vw.innerHTML=""; vw.appendChild(inner);
+
+  // Opdater konto-knap
+  var kb = document.getElementById("kontoBtn");
+  if (kb) {
+    kb.innerHTML = ICONS.gear;
+    kb.className = "konto-btn" + (currentView==="settings" ? " active" : "");
+    kb.onclick = function(){ currentView="settings"; rerender(); };
+  }
 
   nb.innerHTML="";
   VIEWS.forEach(function(v){

@@ -12,6 +12,8 @@
 <title>Timelog</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 :root{
@@ -1977,45 +1979,137 @@ function showRapport(customerNumber, customerName, month, year) {
     footer.appendChild(row4);
     sheet.appendChild(footer);
 
-    // Del knap
-    var shareBtn = document.createElement("button");
-    shareBtn.className = "btnp";
-    shareBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 002 2h12a2 2 0 002-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg> Del rapport';
-    shareBtn.addEventListener("click", function(){
-      var nl = String.fromCharCode(10);
-      var lines = [customerName+" — "+MONTHS_FULL[month]+" "+year, ""];
-      entries.forEach(function(e){
-        var d=new Date(e.date+"T00:00:00");
-        var dato=d.getDate()+"."+(d.getMonth()+1)+".";
-        lines.push(dato+" — "+(e.description||""));
-        var isMoneyE = (e.type==="drive"||e.type==="scan");
-        var tidLinje = "";
-        if (!isMoneyE) {
-          if (e.realFrom && e.realTo) tidLinje += e.realFrom+"–"+e.realTo+" · ";
-          if (e.realHours) tidLinje += "Reel: "+fmt(e.realHours)+"t · ";
-          tidLinje += "Faktureret: "+fmt(e.hours)+"t";
-        } else {
-          tidLinje += Math.round(e.hours*e.hourlyRate).toLocaleString("da-DK")+" kr";
-        }
-        lines.push("       "+tidLinje);
-        lines.push("");
-      });
-      lines.push("———————————————————————");
-      if (totalReal>0) lines.push("Reel tid i alt:    "+fmt(totalReal)+" timer");
-      lines.push("Faktureret i alt:  "+fmt(totalBill)+" timer");
-      var totalKrFmt = Math.round(totalKr).toLocaleString("da-DK")+" kr ex. moms";
-      lines.push("Beløb ex. moms:    "+totalKrFmt);
-      var text = lines.join(nl);
-      if (navigator.share) {
-        navigator.share({ title: customerName+" — "+MONTHS_FULL[month]+" "+year, text: text })
-          .catch(function(){});
-      } else {
-        navigator.clipboard.writeText(text).then(function(){
-          toast("✓ Kopieret til udklipsholder");
+    // PDF + Del knapper
+    var pdfBtn = document.createElement("button");
+    pdfBtn.className = "btnp";
+    pdfBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg> Download PDF';
+    pdfBtn.addEventListener("click", function(){
+      try {
+        var doc = new window.jspdf.jsPDF({ orientation:"portrait", unit:"mm", format:"a4" });
+        var pageW = doc.internal.pageSize.getWidth();
+        var margin = 18;
+
+        // Header baggrund
+        doc.setFillColor(26,25,23);
+        doc.rect(0, 0, pageW, 28, "F");
+
+        // Kundenavn
+        doc.setTextColor(255,255,255);
+        doc.setFontSize(16);
+        doc.setFont("helvetica","bold");
+        doc.text(customerName, margin, 13);
+
+        // Underoverskrift
+        doc.setFontSize(8);
+        doc.setFont("helvetica","normal");
+        doc.setTextColor(180,180,180);
+        var monthLabel = MONTHS_FULL[month].toUpperCase()+" "+year+" · "+entries.length+" REGISTRERINGER";
+        doc.text(monthLabel, margin, 21);
+
+        // Timelog branding øverst til højre
+        doc.setFontSize(7);
+        doc.setTextColor(120,120,120);
+        doc.text("TIMELOG", pageW-margin, 13, {align:"right"});
+
+        // Tabel data
+        var tableRows = [];
+        entries.forEach(function(e){
+          var d = new Date(e.date+"T00:00:00");
+          var dato = d.getDate()+"."+(d.getMonth()+1)+".";
+          var isMoneyE = (e.type==="drive"||e.type==="scan");
+          var desc = e.description||"";
+          if (e.realFrom && e.realTo && !isMoneyE) {
+            desc += "\n"+e.realFrom+"-"+e.realTo;
+          }
+          var realCol = isMoneyE ? "–" : (e.realHours ? fmt(e.realHours)+"t" : "–");
+          var faktCol = isMoneyE
+            ? Math.round(e.hours*e.hourlyRate).toLocaleString("da-DK")+" kr"
+            : fmt(e.hours)+"t";
+          tableRows.push([dato, desc, realCol, faktCol]);
         });
+
+        doc.autoTable({
+          startY: 34,
+          margin: { left: margin, right: margin },
+          head: [["Dato","Beskrivelse","Reel tid","Faktureret"]],
+          body: tableRows,
+          styles: {
+            font: "helvetica",
+            fontSize: 9,
+            cellPadding: { top:4, bottom:4, left:4, right:4 },
+            textColor: [26,25,23],
+            lineColor: [226,224,218],
+            lineWidth: 0.3
+          },
+          headStyles: {
+            fillColor: [245,244,240],
+            textColor: [140,137,128],
+            fontStyle: "normal",
+            fontSize: 7,
+            cellPadding: { top:5, bottom:5, left:4, right:4 }
+          },
+          alternateRowStyles: { fillColor: [250,250,248] },
+          columnStyles: {
+            0: { cellWidth: 14, halign:"left" },
+            1: { cellWidth: "auto" },
+            2: { cellWidth: 18, halign:"right" },
+            3: { cellWidth: 24, halign:"right" }
+          },
+          didParseCell: function(data) {
+            if (data.section==="body" && data.column.index===3) {
+              data.cell.styles.fontStyle = "bold";
+            }
+          }
+        });
+
+        // Footer summary
+        var finalY = doc.lastAutoTable.finalY + 6;
+        doc.setDrawColor(226,224,218);
+        doc.setLineWidth(0.4);
+        doc.line(margin, finalY, pageW-margin, finalY);
+        finalY += 6;
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica","normal");
+        doc.setTextColor(140,137,128);
+
+        var summaryRows = [];
+        if (totalReal > 0) summaryRows.push(["Reel tid i alt", fmt(totalReal)+" timer"]);
+        if (totalBill > 0) summaryRows.push(["Fakturerede timer", fmt(totalBill)+" timer"]);
+        if (hasMoneyEntries) summaryRows.push(["Kørsel + scan", totalMoneyKr.toLocaleString("da-DK")+" kr"]);
+
+        summaryRows.forEach(function(row) {
+          doc.text(row[0], margin, finalY);
+          doc.text(row[1], pageW-margin, finalY, {align:"right"});
+          finalY += 5.5;
+        });
+
+        // Total beløb
+        doc.setDrawColor(226,224,218);
+        doc.line(margin, finalY, pageW-margin, finalY);
+        finalY += 6;
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(10);
+        doc.setTextColor(26,25,23);
+        doc.text("Beløb ex. moms", margin, finalY);
+        doc.text(Math.round(totalKr).toLocaleString("da-DK")+" kr", pageW-margin, finalY, {align:"right"});
+
+        // Gem / del
+        var filename = customerName.replace(/[^a-zA-Z0-9æøåÆØÅ]/g,"-")+"-"+MONTHS_FULL[month]+"-"+year+".pdf";
+        var pdfBlob = doc.output("blob");
+        if (navigator.share && navigator.canShare && navigator.canShare({files:[new File([pdfBlob],"x.pdf",{type:"application/pdf"})]})) {
+          var file = new File([pdfBlob], filename, {type:"application/pdf"});
+          navigator.share({files:[file], title: customerName+" — "+MONTHS_FULL[month]+" "+year})
+            .catch(function(err){ if(err.name!=="AbortError") doc.save(filename); });
+        } else {
+          doc.save(filename);
+        }
+      } catch(err) {
+        console.error("PDF fejl:", err);
+        toast("PDF fejl: "+err.message);
       }
     });
-    sheet.appendChild(shareBtn);
+    sheet.appendChild(pdfBtn);
   }
 
   overlay.appendChild(sheet);

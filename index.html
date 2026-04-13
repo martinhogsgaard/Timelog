@@ -424,8 +424,8 @@ var API = {
   },
 
   async getDraftLines(draftNumber) {
-    var d = await this.req("/invoices/drafts/"+draftNumber+"/lines");
-    return d.collection||[];
+    var d = await this.req("/invoices/drafts/"+draftNumber);
+    return d.lines||[];
   },
 
   async getAllDrafts() {

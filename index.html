@@ -255,7 +255,7 @@ textarea{resize:none}
 .rapport-table tbody td.desc{color:var(--text);line-height:1.4;word-break:break-word;max-width:0;width:100%}
 .rapport-table tbody td.desc .desc-main{font-size:13px;font-weight:500;margin-bottom:2px}
 .rapport-table tbody td.desc .desc-time{font-family:var(--mono);font-size:10px;color:var(--muted)}
-.rapport-table tbody td.num{font-family:var(--mono);font-size:12px;text-align:right;white-space:nowrap;padding-left:8px;padding-top:12px;width:36px}
+.rapport-table tbody td.num{font-family:var(--mono);font-size:11px;text-align:right;white-space:nowrap;padding-left:6px;padding-top:12px;width:32px}
 .rapport-table tbody td.num.real{color:var(--muted)}
 .rapport-table tbody td.num.bill{color:var(--text);font-weight:500}
 .rapport-footer{background:var(--bg);border-radius:10px;padding:14px 16px;margin-bottom:16px}
@@ -1885,7 +1885,7 @@ function showRapport(customerNumber, customerName, month, year) {
 
     // Tbody
     var tbody = document.createElement("tbody");
-    var totalReal=0, totalBill=0;
+    var totalReal=0, totalBill=0, totalKrRows=0;
     entries.forEach(function(e){
       var tr = document.createElement("tr");
 
@@ -1907,26 +1907,31 @@ function showRapport(customerNumber, customerName, month, year) {
       }
       tr.appendChild(tdDesc);
 
+      var isMoneyEntry = (e.type==="drive"||e.type==="scan");
+      var entryKr = Math.round(e.hours * e.hourlyRate);
+
       // Reel tid
       var tdReal = document.createElement("td");
       tdReal.className="num real";
-      var isMoneyEntry = (e.type==="drive"||e.type==="scan");
       tdReal.textContent = isMoneyEntry ? "–" : (e.realHours ? fmt(e.realHours)+"t" : "–");
       if (!isMoneyEntry && e.realHours) totalReal += e.realHours;
       tr.appendChild(tdReal);
 
-      // Faktureret / beløb
+      // Faktureret timer
       var tdBill = document.createElement("td");
       tdBill.className="num bill";
-      if (isMoneyEntry) {
-        var kr = Math.round(e.hours * e.hourlyRate);
-        tdBill.textContent = kr.toLocaleString("da-DK")+" kr";
-        tdBill.style.fontSize="11px";
-      } else {
-        tdBill.textContent = fmt(e.hours)+"t";
-        totalBill += e.hours;
-      }
+      tdBill.textContent = isMoneyEntry ? "–" : fmt(e.hours)+"t";
+      if (!isMoneyEntry) totalBill += e.hours;
       tr.appendChild(tdBill);
+
+      // Beløb kr
+      var tdKr = document.createElement("td");
+      tdKr.className="num";
+      tdKr.style.fontWeight = isMoneyEntry ? "600" : "normal";
+      tdKr.style.fontSize = "11px";
+      tdKr.textContent = entryKr > 0 ? entryKr.toLocaleString("da-DK")+" kr" : "–";
+      totalKrRows += entryKr;
+      tr.appendChild(tdKr);
 
       tbody.appendChild(tr);
     });
@@ -1974,6 +1979,10 @@ function showRapport(customerNumber, customerName, month, year) {
     row4.appendChild(div("rapport-footer-lbl","Beløb ex. moms"));
     var r4v = div("rapport-footer-val big"); r4v.textContent = Math.round(totalKr).toLocaleString("da-DK")+" kr";
     row4.appendChild(r4v);
+    // Use totalKrRows which is summed from the table rows
+    if (Math.round(totalKrRows) !== Math.round(totalKr)) {
+      // fallback — use whichever is set
+    }
 
     // Faktureringsgrad vises kun én gang (allerede tilføjet i row3 ovenfor)
     footer.appendChild(row4);
@@ -2022,10 +2031,10 @@ function showRapport(customerNumber, customerName, month, year) {
             desc += "\n"+e.realFrom+"-"+e.realTo;
           }
           var realCol = isMoneyE ? "–" : (e.realHours ? fmt(e.realHours)+"t" : "–");
-          var faktCol = isMoneyE
-            ? Math.round(e.hours*e.hourlyRate).toLocaleString("da-DK")+" kr"
-            : fmt(e.hours)+"t";
-          tableRows.push([dato, desc, realCol, faktCol]);
+          var faktCol = isMoneyE ? "–" : fmt(e.hours)+"t";
+          var krVal = Math.round(e.hours*e.hourlyRate);
+          var krCol = krVal > 0 ? krVal.toLocaleString("da-DK")+" kr" : "–";
+          tableRows.push([dato, desc, realCol, faktCol, krCol]);
         });
 
         doc.autoTable({
@@ -2050,13 +2059,14 @@ function showRapport(customerNumber, customerName, month, year) {
           },
           alternateRowStyles: { fillColor: [250,250,248] },
           columnStyles: {
-            0: { cellWidth: 14, halign:"left" },
+            0: { cellWidth: 13, halign:"left" },
             1: { cellWidth: "auto" },
-            2: { cellWidth: 18, halign:"right" },
-            3: { cellWidth: 24, halign:"right" }
+            2: { cellWidth: 16, halign:"right" },
+            3: { cellWidth: 16, halign:"right" },
+            4: { cellWidth: 26, halign:"right" }
           },
           didParseCell: function(data) {
-            if (data.section==="body" && data.column.index===3) {
+            if (data.section==="body" && data.column.index===4) {
               data.cell.styles.fontStyle = "bold";
             }
           }

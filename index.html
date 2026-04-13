@@ -599,7 +599,8 @@ var _toastTimer;
 function toast(msg, dur) {
   dur = dur||3200;
   clearTimeout(_toastTimer);
-  document.getElementById("toaster").innerHTML = '<div class="toast">'+msg+'</div>';
+  var t = document.createElement("div"); t.className="toast"; t.textContent=msg;
+  document.getElementById("toaster").innerHTML=""; document.getElementById("toaster").appendChild(t);
   _toastTimer = setTimeout(function(){document.getElementById("toaster").innerHTML="";}, dur);
 }
 

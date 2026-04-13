@@ -1327,21 +1327,28 @@ function buildSettingsView(container) {
       }
     }
 
-    custSearch.addEventListener("input", function(){ renderCustRows(custSearch.value); });
-
-    // iOS: scroll ned så resultater ikke gemmer sig bag tastaturet
-    custSearch.addEventListener("focus", function(){
+    function scrollCustIntoView() {
       setTimeout(function(){
-        custSearch.scrollIntoView({behavior:"smooth", block:"start"});
-        // Ekstra scroll ned så listen er synlig over tastaturet
         var vwrap = document.getElementById("vwrap");
-        if (vwrap) {
-          setTimeout(function(){
-            var rect = custGrp.getBoundingClientRect();
-            vwrap.scrollTop += rect.top - 120;
-          }, 350);
+        if (!vwrap) return;
+        // Scroll så custGrp er synlig over tastaturet (ca. 300px fra bunden)
+        var grpRect = custGrp.getBoundingClientRect();
+        var vwrapRect = vwrap.getBoundingClientRect();
+        var keyboardH = 320; // estimeret tastaturhøjde på iPhone
+        var visibleBottom = window.innerHeight - keyboardH;
+        if (grpRect.bottom > visibleBottom) {
+          vwrap.scrollTop += (grpRect.bottom - visibleBottom) + 20;
         }
-      }, 300);
+      }, 100);
+    }
+
+    custSearch.addEventListener("input", function(){
+      renderCustRows(custSearch.value);
+      scrollCustIntoView();
+    });
+
+    custSearch.addEventListener("focus", function(){
+      setTimeout(scrollCustIntoView, 400);
     });
 
     renderCustRows("");

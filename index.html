@@ -201,7 +201,7 @@ textarea{resize:none}
 .total-grid{display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;padding:16px 0;border:1px solid var(--border);border-radius:var(--r);background:var(--white);margin-bottom:20px}
 
 /* KONTO KNAP I HEADER */
-.konto-btn{position:fixed;top:max(16px,env(safe-area-inset-top));background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(245,244,240,.9);border-radius:8px}
+.konto-btn{position:absolute;top:max(52px,calc(env(safe-area-inset-top) + 16px));right:14px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(245,244,240,.9);border-radius:8px}
 .konto-btn svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
 .konto-btn.active svg{stroke:var(--accent)}
 
@@ -306,10 +306,10 @@ textarea{resize:none}
 </head>
 <body>
 <div id="app">
+<button class="konto-btn" id="kontoBtn"></button>
 <div class="vwrap" id="vwrap"></div>
 <nav class="navbar" id="navbar"></nav>
 </div>
-<button class="konto-btn" id="kontoBtn"></button>
 <div id="toaster"></div>
 
 <script>
@@ -2960,9 +2960,7 @@ function rerender() {
     kb.innerHTML = ICONS.gear;
     kb.className = "konto-btn" + (currentView==="settings" ? " active" : "");
     kb.onclick = function(){ currentView="settings"; rerender(); };
-    // Beregn right så knappen sidder inden for #app på store skærme
-    var appRect = document.getElementById("app").getBoundingClientRect();
-    kb.style.right = Math.max(14, window.innerWidth - appRect.right + 14) + "px";
+
   }
 
   nb.innerHTML="";
@@ -2981,14 +2979,6 @@ function rerender() {
 }
 
 // ─── INIT ────────────────────────────────────────────────────────
-window.addEventListener("resize", function(){
-  var kb = document.getElementById("kontoBtn");
-  if (kb) {
-    var appRect = document.getElementById("app").getBoundingClientRect();
-    kb.style.right = Math.max(14, window.innerWidth - appRect.right + 14) + "px";
-  }
-});
-
 document.addEventListener("DOMContentLoaded", async function(){
   var _initProfiles = S.settings().rateProfiles||[];
   LS.rate = _initProfiles.length>0 ? String(_initProfiles[0].rate||S.settings().defaultRate||1000) : fmt(S.settings().defaultRate||1000);

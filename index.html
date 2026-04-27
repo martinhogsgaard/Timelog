@@ -892,7 +892,8 @@ function buildLogView(container) {
       return p ? p.name : "Manuel";
     }
     function updateRateDisplay() {
-      rateValEl.textContent = fmt(parseH(LS.rate)||0)+" kr/t";
+      var _rv = parseH(LS.rate);
+      rateValEl.textContent = _rv ? fmt(_rv)+" kr/t" : "Vælg timepris →";
       rateValEl.title = getRateName(LS.rate);
     }
     updateRateDisplay();
@@ -903,7 +904,8 @@ function buildLogView(container) {
     // Manuel input (skjult som standard)
     var manWrap = div(""); manWrap.style.display="none";
     var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal";
-    rateInp.placeholder="Skriv pris"; rateInp.className="fv"; rateInp.style.marginTop="4px";
+    rateInp.placeholder="Skriv specialpris…"; rateInp.className="fv"; rateInp.style.marginTop="4px";
+    rateInp.value=""; // aldrig pre-fyldt
     rateInp.addEventListener("input",function(){
       LS.rate=rateInp.value;
       var v = parseH(rateInp.value);

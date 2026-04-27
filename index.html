@@ -904,19 +904,36 @@ function buildLogView(container) {
     var rateChev = div(""); rateChev.innerHTML=ICONS.chevron; rateChev.style.cssText="color:var(--muted);display:flex;flex-shrink:0";
     rateDisplayWrap.appendChild(rateValEl); rateDisplayWrap.appendChild(rateChev);
 
-    // Manuel input (skjult som standard)
-    // Hvis manuel pris: skjul display, vis input
+    // Manuel input — med kr/t label og tilbage-knap
     if (!_isKnownRate) rateDisplayWrap.style.display="none";
-    var manWrap = div(""); manWrap.style.display=_isKnownRate?"none":"block";
+    var manWrap = div(""); manWrap.style.display=_isKnownRate?"none":"flex"; manWrap.style.flexDirection="column"; manWrap.style.gap="4px"; manWrap.style.marginTop="4px";
+
+    // Tilbage-knap
+    var backBtn = document.createElement("button");
+    backBtn.style.cssText="background:none;border:none;cursor:pointer;font-family:var(--mono);font-size:10px;color:var(--accent);text-align:left;padding:0;letter-spacing:.05em";
+    backBtn.textContent="← Vælg fra liste";
+    backBtn.addEventListener("click", function(){
+      manWrap.style.display="none";
+      rateDisplayWrap.style.display="flex";
+      LS.rate=String(profiles[0].rate||settings.defaultRate||1000);
+      updateRateDisplay();
+      updateSubmitBtn();
+    });
+    manWrap.appendChild(backBtn);
+
+    // Input med kr/t suffix
+    var manRow = div(""); manRow.style.cssText="display:flex;align-items:center;gap:6px";
     var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal";
-    rateInp.placeholder="Skriv specialpris…"; rateInp.className="fv"; rateInp.style.marginTop="4px";
+    rateInp.placeholder="0"; rateInp.className="fv"; rateInp.style.flex="1";
     rateInp.value=_isKnownRate?"":LS.rate;
     rateInp.addEventListener("input",function(){
       LS.rate=rateInp.value;
       updateSubmitBtn();
     });
     iosScrollOnFocus(rateInp);
-    manWrap.appendChild(rateInp);
+    var manKr = document.createElement("span"); manKr.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted);flex-shrink:0"; manKr.textContent="kr/t";
+    manRow.appendChild(rateInp); manRow.appendChild(manKr);
+    manWrap.appendChild(manRow);
 
     rateDisplayWrap.addEventListener("click",function(){
       var items = profiles.map(function(p){
@@ -938,7 +955,7 @@ function buildLogView(container) {
         sub: "Skriv en specialpris",
         checked: false,
         onSelect: function(){
-          manWrap.style.display="block";
+          manWrap.style.display="flex";
           rateDisplayWrap.style.display="none";
           LS.rate="";
           rateInp.value="";

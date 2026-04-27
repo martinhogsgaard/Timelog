@@ -39,6 +39,12 @@ body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-w
 .nlbl{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .nbtn.on .nlbl{color:var(--accent)}
 
+/* TOPBAR */
+#topbar{height:0;position:relative;flex-shrink:0}
+#topbar button.gear{position:absolute;right:8px;top:8px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:10}
+#topbar button.gear svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
+#topbar button.gear.active svg{stroke:var(--accent)}
+
 /* COMMON */
 .date-block{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:20px}
 .date-day{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;display:none}
@@ -309,6 +315,7 @@ textarea{resize:none}
 </head>
 <body>
 <div id="app">
+<div id="topbar"></div>
 <div class="vwrap" id="vwrap"></div>
 <nav class="navbar" id="navbar"></nav>
 </div>
@@ -2937,8 +2944,7 @@ var VIEWS=[
   {id:"scan",    label:"Scan",     icon:"camera"},
   {id:"drive",   label:"Kørsel",   icon:"car"},
   {id:"invoices",label:"Dashboard", icon:"file"},
-  {id:"notes",   label:"Notater",  icon:"note"},
-  {id:"settings",label:"Konto",    icon:"gear"}
+  {id:"notes",   label:"Notater",  icon:"note"}
 ];
 var currentView="log";
 

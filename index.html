@@ -513,6 +513,11 @@ var API = {
     var dn = draft.draftInvoiceNumber;
     var fd = new Date(date+"T00:00:00").toLocaleDateString("da-DK",{day:"2-digit",month:"2-digit",year:"numeric"});
     await this.addLine(dn, fd+" – "+description, hours, rate);
+    // Invalider e-conomic stats cache i baggrunden
+    try {
+      var key = await this.getAppKey();
+      fetch("/api/economic-stats", {method:"POST", headers:{"x-app-key":key||""}});
+    } catch(e) {}
     return dn;
   }
 };
@@ -1116,6 +1121,13 @@ function buildDashboardStats(container) {
   var mProfit = monthEntries.reduce(function(s,e){return s+calcEntryProfit(e);},0);
   var mHours  = monthEntries.filter(function(e){return e.type==="hours";}).reduce(function(s,e){return s+e.hours;},0);
 
+  // Fortjeneste fra lokale entries (timelog kender avancer, e-conomic ikke)
+  var yearEntries = entries.filter(function(e){
+    return new Date(e.date+"T00:00:00").getFullYear()===curYear;
+  });
+  var yProfit = yearEntries.reduce(function(s,e){return s+calcEntryProfit(e);},0);
+  var yHours  = yearEntries.filter(function(e){return e.type==="hours";}).reduce(function(s,e){return s+e.hours;},0);
+
   var sb = div("dash-sbar");
   function dashStat(label, val, unit) {
     var s = div("dash-stat");
@@ -1124,7 +1136,9 @@ function buildDashboardStats(container) {
     s.appendChild(div("dash-stat-u", unit));
     return s;
   }
-  sb.appendChild(dashStat("Faktureret", Math.round(mKr).toLocaleString("da-DK"), "kr ex. moms"));
+  // Faktureret denne måned — placeholder, opdateres fra e-conomic
+  var mFaktEl = dashStat("Faktureret", "…", "kr ex. moms");
+  sb.appendChild(mFaktEl);
   sb.appendChild(div("sdiv"));
   sb.appendChild(dashStat("Fortjeneste", Math.round(mProfit).toLocaleString("da-DK"), "kr ex. moms"));
   sb.appendChild(div("sdiv"));
@@ -1132,21 +1146,42 @@ function buildDashboardStats(container) {
   container.appendChild(sb);
 
   // ── SEKTION 2: Indeværende år ──
-  var yearEntries = entries.filter(function(e){
-    return new Date(e.date+"T00:00:00").getFullYear()===curYear;
-  });
-  var yKr     = yearEntries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
-  var yProfit = yearEntries.reduce(function(s,e){return s+calcEntryProfit(e);},0);
-  var yHours  = yearEntries.filter(function(e){return e.type==="hours";}).reduce(function(s,e){return s+e.hours;},0);
-
   container.appendChild(div("slbl","<span>"+curYear+" i alt</span>"));
   var sb2 = div("dash-sbar");
-  sb2.appendChild(dashStat("Faktureret", Math.round(yKr).toLocaleString("da-DK"), "kr ex. moms"));
+  var yFaktEl = dashStat("Faktureret", "…", "kr ex. moms");
+  sb2.appendChild(yFaktEl);
   sb2.appendChild(div("sdiv"));
   sb2.appendChild(dashStat("Fortjeneste", Math.round(yProfit).toLocaleString("da-DK"), "kr ex. moms"));
   sb2.appendChild(div("sdiv"));
   sb2.appendChild(dashStat("Timer", fmt(yHours), "fakturerede timer"));
   container.appendChild(sb2);
+
+  // Hent dashboard totaler fra e-conomic (cached 24h)
+  var updatedLbl = div(""); updatedLbl.style.cssText="font-family:var(--mono);font-size:9px;color:var(--subtle);text-align:right;margin-top:-8px;margin-bottom:16px";
+  updatedLbl.textContent="Henter fra e-conomic…";
+  container.appendChild(updatedLbl);
+  (async function(){
+    try {
+      var key = await API.getAppKey();
+      var res = await fetch("/api/economic-stats", {headers:{"x-app-key":key||""}});
+      var data = await res.json();
+      if (data.month !== undefined) {
+        // Opdater denne måned
+        var mValEl = mFaktEl.querySelector(".dash-stat-v");
+        if (mValEl) mValEl.innerHTML = "<strong>"+Math.round(data.month).toLocaleString("da-DK")+"</strong>";
+        // Opdater år
+        var yValEl = yFaktEl.querySelector(".dash-stat-v");
+        if (yValEl) yValEl.innerHTML = "<strong>"+Math.round(data.year).toLocaleString("da-DK")+"</strong>";
+        // Vis tidsstempel
+        var d = new Date(data.updatedAt);
+        var timeStr = d.toLocaleTimeString("da-DK",{hour:"2-digit",minute:"2-digit"});
+        var dateStr = d.toLocaleDateString("da-DK",{day:"numeric",month:"short"});
+        updatedLbl.textContent = (data.fromCache ? "Cache" : "Live")+" · "+dateStr+" "+timeStr;
+      }
+    } catch(e) {
+      updatedLbl.textContent = "Kunne ikke hente fra e-conomic";
+    }
+  })();
 
   // ── SEKTION 3: Per kunde denne måned (bjælker) ──
   var byCustomer = {};
@@ -1228,68 +1263,126 @@ function buildDashboardStats(container) {
   uniqueCustomers.sort(function(a,b){return a.name.localeCompare(b.name,"da");});
 
   if (uniqueCustomers.length > 0) {
-    container.appendChild(div("slbl","<span>Kunde analyse</span>"));
-    var picker = document.createElement("select");
-    picker.className = "kunde-picker";
-    var defaultOpt = document.createElement("option");
-    defaultOpt.value=""; defaultOpt.textContent="Vælg kunde…";
-    picker.appendChild(defaultOpt);
-    uniqueCustomers.forEach(function(c){
-      var opt = document.createElement("option");
-      opt.value=c.number; opt.textContent=c.name;
-      picker.appendChild(opt);
-    });
-    container.appendChild(picker);
+    var kundeLbl = div("slbl"); kundeLbl.innerHTML="<span>Kunde analyse</span>";
+    container.appendChild(kundeLbl);
 
+    // Søgefelt
+    var kundeSearch = document.createElement("input");
+    kundeSearch.type="text"; kundeSearch.placeholder="Søg kunde…";
+    kundeSearch.style.cssText="width:100%;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:13px 16px;font-family:var(--font);font-size:16px;font-weight:500;color:var(--text);outline:none;margin-bottom:8px;display:block";
+    container.appendChild(kundeSearch);
+
+    // Forslags-liste
+    var suggestList = div("sgrp"); suggestList.style.cssText="margin-bottom:16px;display:none";
+    container.appendChild(suggestList);
+
+    // Detalje-panel
     var kundeDetail = div(""); kundeDetail.style.marginBottom="20px";
     container.appendChild(kundeDetail);
 
-    picker.addEventListener("change", function(){
-      kundeDetail.innerHTML="";
-      if (!picker.value) return;
-      var cNum = picker.value;
-      var cName = (uniqueCustomers.find(function(c){return String(c.number)===String(cNum);})||{}).name||"";
+    // Cache til session så vi ikke henter igen
+    var _ecoCache = {};
+
+    function kBox(cls, label, val, unit) {
+      var b = div("kunde-stat-box"+(cls?" "+cls:""));
+      b.appendChild(div("kunde-stat-l", label));
+      var vEl = div("kunde-stat-v"); vEl.textContent=val; b.appendChild(vEl);
+      if (unit){var uEl=div("kunde-stat-u");uEl.textContent=unit;b.appendChild(uEl);}
+      return b;
+    }
+
+    function showKundeDetail(cNum, cName) {
+      kundeSearch.value = cName;
+      suggestList.style.display = "none";
+      kundeDetail.innerHTML = "";
+
+      // Fortjeneste fra lokale entries (timelog kender avancer)
       var cAll   = entries.filter(function(e){return String(e.customerNumber)===String(cNum);});
       var cMonth = cAll.filter(function(e){var d=new Date(e.date+"T00:00:00");return d.getMonth()===curMonth&&d.getFullYear()===curYear;});
       var cYear  = cAll.filter(function(e){return new Date(e.date+"T00:00:00").getFullYear()===curYear;});
-
-      function sKr(arr){return arr.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);}
       function sP(arr){return arr.reduce(function(s,e){return s+calcEntryProfit(e);},0);}
       function sH(arr){return arr.filter(function(e){return e.type==="hours";}).reduce(function(s,e){return s+e.hours;},0);}
       function sU(arr){return arr.reduce(function(s,e){return s+calcEntryUdlaeg(e);},0);}
+      var mProfit = sP(cMonth), yProfit = sP(cYear), tProfit = sP(cAll);
+      var tHours = sH(cAll), tUdlaeg = sU(cAll);
+      var driveKr = Math.round(cAll.filter(function(e){return e.type==="drive";}).reduce(function(s,e){return s+e.hours*e.hourlyRate;},0));
 
-      function kBox(cls, label, val, unit) {
-        var b = div("kunde-stat-box"+(cls?" "+cls:""));
-        b.appendChild(div("kunde-stat-l", label));
-        var vEl = div("kunde-stat-v"); vEl.textContent=val; b.appendChild(vEl);
-        if (unit){var uEl=div("kunde-stat-u");uEl.textContent=unit;b.appendChild(uEl);}
-        return b;
-      }
+      // Luk-knap
+      var closeRow = div(""); closeRow.style.cssText="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px";
+      var closeTitle = div(""); closeTitle.style.cssText="font-size:15px;font-weight:600"; closeTitle.textContent=cName;
+      var closeBtn = document.createElement("button");
+      closeBtn.style.cssText="background:none;border:1px solid var(--border);border-radius:7px;padding:5px 10px;font-family:var(--mono);font-size:10px;color:var(--muted);cursor:pointer";
+      closeBtn.textContent="✕ Luk";
+      closeBtn.addEventListener("click", function(){ kundeDetail.innerHTML=""; kundeSearch.value=""; });
+      closeRow.appendChild(closeTitle); closeRow.appendChild(closeBtn);
+      kundeDetail.appendChild(closeRow);
 
-      // Faktureret
-      kundeDetail.appendChild(div("slbl","<span>Faktureret</span>"));
-      var g1=div("kunde-stat-grid");
-      g1.appendChild(kBox("accent","Denne måned",Math.round(sKr(cMonth)).toLocaleString("da-DK")+" kr","ex. moms"));
-      g1.appendChild(kBox("accent",curYear+" i alt",Math.round(sKr(cYear)).toLocaleString("da-DK")+" kr","ex. moms"));
-      kundeDetail.appendChild(g1);
-      var g2=div("kunde-stat-grid");
-      g2.appendChild(kBox("","I alt",Math.round(sKr(cAll)).toLocaleString("da-DK")+" kr","ex. moms"));
-      g2.appendChild(kBox("","Timer faktureret",fmt(sH(cAll))+" t","alle perioder"));
-      kundeDetail.appendChild(g2);
+      // Faktureret sektion — med spinner mens e-conomic henter
+      kundeDetail.appendChild(div("slbl","<span>Faktureret — fra e-conomic</span>"));
+      var faktGrid = div(""); faktGrid.style.marginBottom="8px";
+      var spinner = div(""); spinner.innerHTML='<div style="padding:16px;text-align:center"><span class="spin-dark" style="width:20px;height:20px;margin:0 auto"></span></div>';
+      faktGrid.appendChild(spinner);
+      kundeDetail.appendChild(faktGrid);
 
-      // Fortjeneste
-      kundeDetail.appendChild(div("slbl","<span>Fortjeneste</span>"));
+      // Fortjeneste sektion — fra lokale entries
+      kundeDetail.appendChild(div("slbl","<span>Fortjeneste — fra Timelog</span>"));
       var g3=div("kunde-stat-grid");
-      g3.appendChild(kBox("green","Denne måned",Math.round(sP(cMonth)).toLocaleString("da-DK")+" kr","ex. moms"));
-      g3.appendChild(kBox("green",curYear+" i alt",Math.round(sP(cYear)).toLocaleString("da-DK")+" kr","ex. moms"));
+      g3.appendChild(kBox("green","Denne måned",Math.round(mProfit).toLocaleString("da-DK")+" kr","ex. moms"));
+      g3.appendChild(kBox("green",curYear+" i alt",Math.round(yProfit).toLocaleString("da-DK")+" kr","ex. moms"));
       kundeDetail.appendChild(g3);
       var g4=div("kunde-stat-grid");
-      g4.appendChild(kBox("green","I alt",Math.round(sP(cAll)).toLocaleString("da-DK")+" kr","ex. moms"));
-      var udlaeg = sU(cAll);
-      g4.appendChild(kBox("",udlaeg>0?"Udlæg i alt":"Kørsel i alt",
-        udlaeg>0 ? Math.round(udlaeg).toLocaleString("da-DK")+" kr" : Math.round(cAll.filter(function(e){return e.type==="drive";}).reduce(function(s,e){return s+e.hours*e.hourlyRate;},0)).toLocaleString("da-DK")+" kr",
-        "videresendt"));
+      g4.appendChild(kBox("green","I alt",Math.round(tProfit).toLocaleString("da-DK")+" kr","ex. moms"));
+      g4.appendChild(kBox("","Timer faktureret",fmt(tHours)+" t","alle perioder"));
       kundeDetail.appendChild(g4);
+      if (tUdlaeg>0 || driveKr>0) {
+        var g5=div("kunde-stat-grid");
+        if (tUdlaeg>0) g5.appendChild(kBox("","Udlæg i alt",Math.round(tUdlaeg).toLocaleString("da-DK")+" kr","videresendt"));
+        if (driveKr>0) g5.appendChild(kBox("","Kørsel i alt",driveKr.toLocaleString("da-DK")+" kr","videresendt"));
+        kundeDetail.appendChild(g5);
+      }
+
+      // Hent faktureret fra e-conomic (brug cache hvis tilgængelig)
+      (async function(){
+        try {
+          var eco;
+          if (_ecoCache[cNum]) {
+            eco = _ecoCache[cNum];
+          } else {
+            var key = await API.getAppKey();
+            var res = await fetch("/api/economic-stats?customer="+cNum, {headers:{"x-app-key":key||""}});
+            eco = await res.json();
+            _ecoCache[cNum] = eco;
+          }
+          faktGrid.innerHTML="";
+          var gf1=div("kunde-stat-grid");
+          gf1.appendChild(kBox("accent","Denne måned",Math.round(eco.month||0).toLocaleString("da-DK")+" kr","ex. moms"));
+          gf1.appendChild(kBox("accent",curYear+" i alt",Math.round(eco.year||0).toLocaleString("da-DK")+" kr","ex. moms"));
+          faktGrid.appendChild(gf1);
+          var gf2=div("kunde-stat-grid");
+          gf2.appendChild(kBox("","I alt",Math.round(eco.total||0).toLocaleString("da-DK")+" kr","ex. moms"));
+          gf2.appendChild(kBox("","Fakturaer i alt",(eco.count||0)+" stk","bogførte + kladder"));
+          faktGrid.appendChild(gf2);
+        } catch(e) {
+          faktGrid.innerHTML="<div style='padding:12px;font-family:var(--mono);font-size:11px;color:var(--muted)'>Kunne ikke hente fra e-conomic</div>";
+        }
+      })();
+    }
+
+    // Søge-logik
+    kundeSearch.addEventListener("input", function(){
+      var q = kundeSearch.value.trim();
+      kundeDetail.innerHTML="";
+      if (!q) { suggestList.style.display="none"; return; }
+      var matches = uniqueCustomers.filter(function(c){return c.name.toLowerCase().indexOf(q.toLowerCase())>=0;});
+      suggestList.innerHTML="";
+      if (matches.length===0) { suggestList.style.display="none"; return; }
+      matches.forEach(function(c){
+        var row = div("srow"); row.style.cursor="pointer";
+        var name = div("srlbl"); name.textContent=c.name; row.appendChild(name);
+        row.addEventListener("click", function(){ showKundeDetail(c.number, c.name); });
+        suggestList.appendChild(row);
+      });
+      suggestList.style.display="block";
     });
   }
 
@@ -1300,99 +1393,6 @@ function buildInvoicesView(container) {
 
   // Dashboard øverst
   buildDashboardStats(container);
-
-  // Kunde analyse dropdown
-  // Brug S.customers() som primær kilde — alle kunder vises, ikke kun dem med entries
-  var allCustomers = S.customers();
-  var uniqueCustomers = allCustomers.length > 0
-    ? allCustomers.map(function(c){return {number:c.number, name:c.name};})
-    : (function(){
-        // Fallback: byg fra entries hvis customers ikke er synkroniseret
-        var seen={}, list=[];
-        entries.forEach(function(e){
-          if(!seen[e.customerNumber]){seen[e.customerNumber]=true;list.push({number:e.customerNumber,name:e.customerName});}
-        });
-        return list;
-      })();
-  uniqueCustomers.sort(function(a,b){return a.name.localeCompare(b.name,"da");});
-
-  if (uniqueCustomers.length > 0) {
-    container.appendChild(div("slbl","<span>Kunde analyse</span>"));
-
-    var picker = document.createElement("select");
-    picker.className = "kunde-picker";
-    var defaultOpt = document.createElement("option");
-    defaultOpt.value = ""; defaultOpt.textContent = "Vælg kunde…";
-    picker.appendChild(defaultOpt);
-    uniqueCustomers.forEach(function(c){
-      var opt = document.createElement("option");
-      opt.value = c.number; opt.textContent = c.name;
-      picker.appendChild(opt);
-    });
-
-    var kundeDetail = div(""); kundeDetail.style.marginBottom="20px";
-
-    picker.addEventListener("change", function(){
-      kundeDetail.innerHTML = "";
-      if (!picker.value) return;
-      var cNum = picker.value;
-      var cEntries = entries.filter(function(e){return String(e.customerNumber)===String(cNum);});
-      var cName = (uniqueCustomers.find(function(c){return String(c.number)===String(cNum);})||{}).name||"";
-
-      // Beregn per periode
-      var cMonthE = cEntries.filter(function(e){
-        var d=new Date(e.date+"T00:00:00");
-        return d.getMonth()===curMonth && d.getFullYear()===curYear;
-      });
-      var cYearE = cEntries.filter(function(e){
-        return new Date(e.date+"T00:00:00").getFullYear()===curYear;
-      });
-
-      function sumKr(arr) { return arr.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0); }
-      function sumProfit(arr) { return arr.reduce(function(s,e){return s+calcEntryProfit(e);},0); }
-      function sumUdlaeg(arr) { return arr.reduce(function(s,e){return s+calcEntryUdlaeg(e);},0); }
-      function sumHours(arr) { return arr.filter(function(e){return e.type==="hours";}).reduce(function(s,e){return s+e.hours;},0); }
-
-      var mKr = sumKr(cMonthE), yKr = sumKr(cYearE), tKr = sumKr(cEntries);
-      var mP = sumProfit(cMonthE), yP = sumProfit(cYearE), tP = sumProfit(cEntries);
-      var tUd = sumUdlaeg(cEntries);
-      var tHrs = sumHours(cEntries);
-
-      // Faktureret grid
-      var fg = div("kunde-stat-grid");
-      function kBox(cls, label, val, unit) {
-        var b = div("kunde-stat-box"+(cls?" "+cls:""));
-        b.appendChild(div("kunde-stat-l", label));
-        var vEl = div("kunde-stat-v"); vEl.textContent = val; b.appendChild(vEl);
-        if (unit) { var uEl = div("kunde-stat-u"); uEl.textContent=unit; b.appendChild(uEl); }
-        return b;
-      }
-
-      kundeDetail.appendChild(div("slbl","<span>Faktureret</span>"));
-      var fg2 = div("kunde-stat-grid");
-      fg2.appendChild(kBox("accent","Denne måned", Math.round(mKr).toLocaleString("da-DK")+" kr","ex. moms"));
-      fg2.appendChild(kBox("accent",curYear+" i alt", Math.round(yKr).toLocaleString("da-DK")+" kr","ex. moms"));
-      kundeDetail.appendChild(fg2);
-      var fg3 = div("kunde-stat-grid");
-      fg3.appendChild(kBox("","I alt", Math.round(tKr).toLocaleString("da-DK")+" kr","ex. moms"));
-      fg3.appendChild(kBox("","Timer i alt", fmt(tHrs)+" t","fakturerede timer"));
-      kundeDetail.appendChild(fg3);
-
-      // Fortjeneste grid
-      kundeDetail.appendChild(div("slbl","<span>Fortjeneste</span>"));
-      var pg = div("kunde-stat-grid");
-      pg.appendChild(kBox("green","Denne måned", Math.round(mP).toLocaleString("da-DK")+" kr","ex. moms"));
-      pg.appendChild(kBox("green",curYear+" i alt", Math.round(yP).toLocaleString("da-DK")+" kr","ex. moms"));
-      kundeDetail.appendChild(pg);
-      var pg2 = div("kunde-stat-grid");
-      pg2.appendChild(kBox("green","I alt", Math.round(tP).toLocaleString("da-DK")+" kr","ex. moms"));
-      if (tUd > 0) pg2.appendChild(kBox("","Udlæg i alt", Math.round(tUd).toLocaleString("da-DK")+" kr","videresendt til kunde"));
-      kundeDetail.appendChild(pg2);
-    });
-
-    container.appendChild(picker);
-    container.appendChild(kundeDetail);
-  }
 
   // Divider
   container.appendChild(div("dash-divider",""));

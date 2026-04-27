@@ -905,14 +905,14 @@ function buildLogView(container) {
     rateDisplayWrap.appendChild(rateValEl); rateDisplayWrap.appendChild(rateChev);
 
     // Manuel input (skjult som standard)
+    // Hvis manuel pris: skjul display, vis input
+    if (!_isKnownRate) rateDisplayWrap.style.display="none";
     var manWrap = div(""); manWrap.style.display=_isKnownRate?"none":"block";
     var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal";
     rateInp.placeholder="Skriv specialpris…"; rateInp.className="fv"; rateInp.style.marginTop="4px";
     rateInp.value=_isKnownRate?"":LS.rate;
     rateInp.addEventListener("input",function(){
       LS.rate=rateInp.value;
-      var v = parseH(rateInp.value);
-      rateValEl.textContent = v ? fmt(v)+" kr/t" : "Manuel pris";
       updateSubmitBtn();
     });
     iosScrollOnFocus(rateInp);
@@ -927,6 +927,7 @@ function buildLogView(container) {
           onSelect: function(){
             LS.rate=String(p.rate);
             manWrap.style.display="none";
+            rateDisplayWrap.style.display="flex";
             updateRateDisplay();
             updateSubmitBtn();
           }
@@ -938,8 +939,8 @@ function buildLogView(container) {
         checked: false,
         onSelect: function(){
           manWrap.style.display="block";
+          rateDisplayWrap.style.display="none";
           LS.rate="";
-          rateValEl.textContent="Manuel pris";
           rateInp.value="";
           rateInp.focus();
         }

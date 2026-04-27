@@ -1,8 +1,7 @@
 // /api/economic-stats.js
 // Henter fakturerede beløb fra e-conomic og cacher i Redis
 // GET  /api/economic-stats?customer=123  → kundespecifik data live
-// GET  /api/economic-stats?totals=1      → dashboard totaler (cached 24h)
-// POST /api/economic-stats               → tving opdatering af cache
+// POST /api/economic-stats               → tving opdatering af dashboard cache
 
 const REDIS_URL       = process.env.KV_REST_API_URL;
 const REDIS_TOKEN     = process.env.KV_REST_API_TOKEN;
@@ -47,9 +46,9 @@ async function ecoReq(path) {
   return res.json();
 }
 
-// Hent alle sider fra et e-conomic endpoint
 async function fetchAllPages(basePath) {
   let all = [];
+  let page = 0;
   let url = basePath + (basePath.includes("?") ? "&" : "?") + "pagesize=100&skippages=0";
   while (url) {
     const d = await ecoReq(url);
@@ -59,32 +58,31 @@ async function fetchAllPages(basePath) {
     if (d.pagination && d.pagination.nextPage) {
       url = d.pagination.nextPage.replace("https://restapi.e-conomic.com", "");
     } else if (batch.length === 100) {
-      // Manuel pagination fallback
-      const skip = Math.floor(all.length / 100);
-      url = basePath + (basePath.includes("?") ? "&" : "?") + "pagesize=100&skippages=" + skip;
+      page++;
+      url = basePath + (basePath.includes("?") ? "&" : "?") + "pagesize=100&skippages=" + page;
     }
   }
   return all;
 }
 
-// Beregn totaler fra en liste af fakturaer
-function sumInvoices(invoices) {
-  return invoices.reduce(function(s, inv) {
-    return s + (inv.netAmount || inv.grossAmount || 0);
-  }, 0);
+// Hent totals for én bogført faktura individuelt
+async function getBookedInvoiceData(bookedInvoiceNumber) {
+  try {
+    const d = await ecoReq("/invoices/booked/" + bookedInvoiceNumber);
+    return {
+      net: d.netAmount || 0,
+      gross: d.grossAmount || 0,
+      date: d.date || null
+    };
+  } catch(e) {
+    return { net: 0, gross: 0, date: null };
+  }
 }
 
-// Hent alle bogførte + kladde fakturaer for én kunde
 async function fetchCustomerInvoices(customerNumber) {
-  const curYear = new Date().getFullYear();
-
-  // Bogførte fakturaer
-  let booked = [];
-  try {
-    booked = await fetchAllPages(
-      "/invoices/booked?filter=customer.customerNumber$eq:" + customerNumber
-    );
-  } catch(e) { /* ignorer fejl */ }
+  const now = new Date();
+  const curYear = now.getFullYear();
+  const curMonth = now.getMonth();
 
   // Kladder
   let drafts = [];
@@ -92,55 +90,93 @@ async function fetchCustomerInvoices(customerNumber) {
     drafts = await fetchAllPages(
       "/invoices/drafts?filter=customer.customerNumber$eq:" + customerNumber
     );
-  } catch(e) { /* ignorer fejl */ }
+  } catch(e) {}
 
-  const allInvoices = booked.concat(drafts);
-  const now = new Date();
-  const curMonth = now.getMonth();
+  // Bogførte — hent liste, derefter individuelle beløb
+  let bookedList = [];
+  try {
+    bookedList = await fetchAllPages(
+      "/invoices/booked?filter=customer.customerNumber$eq:" + customerNumber
+    );
+  } catch(e) {}
 
-  const monthInvoices = allInvoices.filter(function(inv) {
-    const d = new Date(inv.date + "T00:00:00");
-    return d.getMonth() === curMonth && d.getFullYear() === curYear;
-  });
-  const yearInvoices = allInvoices.filter(function(inv) {
-    return new Date(inv.date + "T00:00:00").getFullYear() === curYear;
-  });
+  // Hent beløb parallelt
+  const bookedFull = await Promise.all(
+    bookedList.map(async function(inv) {
+      const d = await getBookedInvoiceData(inv.bookedInvoiceNumber);
+      return { date: d.date || inv.date, netAmount: d.net };
+    })
+  );
+
+  const allInvoices = bookedFull.concat(drafts);
+
+  function filterMonth(arr) {
+    return arr.filter(function(inv) {
+      if (!inv.date) return false;
+      const d = new Date(inv.date + "T00:00:00");
+      return d.getMonth() === curMonth && d.getFullYear() === curYear;
+    });
+  }
+  function filterYear(arr) {
+    return arr.filter(function(inv) {
+      if (!inv.date) return false;
+      return new Date(inv.date + "T00:00:00").getFullYear() === curYear;
+    });
+  }
+  function sumNet(arr) {
+    return arr.reduce(function(s, inv) { return s + (inv.netAmount || 0); }, 0);
+  }
 
   return {
-    customerNumber: customerNumber,
-    month:  Math.round(sumInvoices(monthInvoices)),
-    year:   Math.round(sumInvoices(yearInvoices)),
-    total:  Math.round(sumInvoices(allInvoices)),
-    count:  allInvoices.length,
-    updatedAt: new Date().toISOString()
+    customerNumber: String(customerNumber),
+    month:       Math.round(sumNet(filterMonth(allInvoices))),
+    year:        Math.round(sumNet(filterYear(allInvoices))),
+    total:       Math.round(sumNet(allInvoices)),
+    count:       allInvoices.length,
+    bookedCount: bookedFull.length,
+    draftCount:  drafts.length,
+    updatedAt:   new Date().toISOString()
   };
 }
 
-// Hent totaler på tværs af alle kunder (til dashboard)
 async function fetchDashboardTotals() {
-  const curYear = new Date().getFullYear();
   const now = new Date();
+  const curYear = now.getFullYear();
   const curMonth = now.getMonth();
 
-  let booked = [];
+  let bookedList = [];
+  try { bookedList = await fetchAllPages("/invoices/booked"); } catch(e) {}
+
+  const bookedFull = await Promise.all(
+    bookedList.map(async function(inv) {
+      const d = await getBookedInvoiceData(inv.bookedInvoiceNumber);
+      return { date: d.date || inv.date, netAmount: d.net };
+    })
+  );
+
   let drafts = [];
-  try { booked = await fetchAllPages("/invoices/booked"); } catch(e) {}
   try { drafts = await fetchAllPages("/invoices/drafts"); } catch(e) {}
 
-  const allInvoices = booked.concat(drafts);
+  const allInvoices = bookedFull.concat(drafts);
+
+  function sumNet(arr) {
+    return arr.reduce(function(s, inv) { return s + (inv.netAmount || 0); }, 0);
+  }
 
   const monthInv = allInvoices.filter(function(inv) {
+    if (!inv.date) return false;
     const d = new Date(inv.date + "T00:00:00");
     return d.getMonth() === curMonth && d.getFullYear() === curYear;
   });
   const yearInv = allInvoices.filter(function(inv) {
+    if (!inv.date) return false;
     return new Date(inv.date + "T00:00:00").getFullYear() === curYear;
   });
 
   return {
-    month: Math.round(sumInvoices(monthInv)),
-    year:  Math.round(sumInvoices(yearInv)),
-    total: Math.round(sumInvoices(allInvoices)),
+    month: Math.round(sumNet(monthInv)),
+    year:  Math.round(sumNet(yearInv)),
+    total: Math.round(sumNet(allInvoices)),
     updatedAt: new Date().toISOString()
   };
 }
@@ -157,28 +193,24 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Kundespecifik data — altid live
     if (req.query.customer) {
       const data = await fetchCustomerInvoices(req.query.customer);
       return res.status(200).json(data);
     }
 
-    // Dashboard totaler — brug cache hvis frisk
-    if (req.query.totals || req.method === "GET") {
+    if (req.method === "GET") {
       const cached = await redisGet(CACHE_KEY);
-      if (cached && req.method === "GET") {
+      if (cached) {
         const age = Date.now() - new Date(cached.updatedAt).getTime();
         if (age < CACHE_TTL * 1000) {
           return res.status(200).json(Object.assign({}, cached, { fromCache: true }));
         }
       }
-      // Hent friske data
       const data = await fetchDashboardTotals();
       await redisSet(CACHE_KEY, data, CACHE_TTL);
       return res.status(200).json(Object.assign({}, data, { fromCache: false }));
     }
 
-    // POST = tving cache-opdatering
     if (req.method === "POST") {
       const data = await fetchDashboardTotals();
       await redisSet(CACHE_KEY, data, CACHE_TTL);

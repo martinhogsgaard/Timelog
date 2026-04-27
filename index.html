@@ -31,7 +31,7 @@ body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-w
 @keyframes fi{from{opacity:0}to{opacity:1}}
 
 /* NAV */
-.navbar{display:flex;border-top:1px solid var(--border);background:rgba(245,244,240,.96);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);padding:10px 0 max(16px,env(safe-area-inset-bottom));flex-shrink:0}
+.navbar{display:flex;border-top:1px solid var(--border);background:var(--bg);padding:10px 0 max(16px,env(safe-area-inset-bottom));flex-shrink:0}
 .nbtn{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;background:none;border:none;cursor:pointer;padding:4px 8px;opacity:.32;transition:opacity .15s}
 .nbtn.on{opacity:1}
 .nbtn svg{width:22px;height:22px;stroke:var(--text);fill:none;stroke-width:1.6}
@@ -2991,6 +2991,17 @@ window.addEventListener("resize", function(){
   gb.style.right = Math.max(8, Math.round(window.innerWidth - appR + 8)) + "px";
 });
 document.addEventListener("DOMContentLoaded", async function(){
+
+  // Beregn gear-knap position
+  function posGear() {
+    var gb = document.getElementById("gearBtn");
+    var app = document.getElementById("app");
+    if (!gb || !app) return;
+    var r = app.getBoundingClientRect();
+    gb.style.right = Math.round(window.innerWidth - r.right + 14) + "px";
+  }
+  posGear();
+  window.addEventListener("resize", posGear);
 
   var _initProfiles = S.settings().rateProfiles||[];
   LS.rate = _initProfiles.length>0 ? String(_initProfiles[0].rate||S.settings().defaultRate||1000) : fmt(S.settings().defaultRate||1000);

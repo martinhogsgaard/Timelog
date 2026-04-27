@@ -25,7 +25,7 @@
 }
 html,body{height:100%;overscroll-behavior:none;background:var(--bg)}
 body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
-#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg);position:relative}
+#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg);position:relative;overflow:visible}
 .vwrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .view{padding:0 20px 40px;animation:fi .2s ease}
 @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -201,7 +201,7 @@ textarea{resize:none}
 .total-grid{display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;padding:16px 0;border:1px solid var(--border);border-radius:var(--r);background:var(--white);margin-bottom:20px}
 
 /* KONTO KNAP I HEADER */
-.konto-btn{position:fixed;top:max(16px,env(safe-area-inset-top));right:14px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(245,244,240,.9);border-radius:8px}
+.konto-btn{position:absolute;top:max(16px,env(safe-area-inset-top));right:14px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(245,244,240,.9);border-radius:8px}
 .konto-btn svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
 .konto-btn.active svg{stroke:var(--accent)}
 
@@ -1803,36 +1803,6 @@ function buildSettingsView(container) {
   var syncBtn=document.createElement("button"); syncBtn.className="btns"; syncBtn.innerHTML=ICONS.refresh+" Synkroniser kunder fra e-conomic";
   syncBtn.addEventListener("click",function(){doSync(syncBtn);});
   container.appendChild(syncBtn);
-
-  // Data cleanup knap
-  var cleanupBtn=document.createElement("button"); cleanupBtn.className="btns"; cleanupBtn.style.marginTop="8px";
-  cleanupBtn.innerHTML="🔧 Synkroniser annullerede entries";
-  cleanupBtn.addEventListener("click", async function(){
-    cleanupBtn.innerHTML="Synkroniserer…"; cleanupBtn.disabled=true;
-    try {
-      // Hent fra Redis
-      var key = await API.getAppKey();
-      var res = await fetch("/api/store",{headers:{"x-app-key":key}});
-      var serverData = await res.json();
-      // Kanceller alle Zoo entries i server-data
-      var updated = serverData.entries.map(function(e){
-        if(e.customerName==="Aalborg Zoo") return Object.assign({},e,{cancelled:true, manualCancelled:true});
-        return e;
-      });
-      // Gem tilbage
-      var saveRes = await fetch("/api/store",{method:"POST",headers:{"Content-Type":"application/json","x-app-key":key},body:JSON.stringify({entries:updated})});
-      var saveData = await saveRes.json();
-      // Opdater localStorage
-      localStorage.setItem("tl_e", JSON.stringify(updated));
-      toast("✓ Data synkroniseret");
-      rerender();
-    } catch(e) {
-      toast("Fejl: "+e.message);
-      cleanupBtn.innerHTML="🔧 Synkroniser annullerede entries";
-      cleanupBtn.disabled=false;
-    }
-  });
-  container.appendChild(cleanupBtn);
 
   var footer=div(""); footer.style.cssText="margin-top:40px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--subtle);letter-spacing:.1em";
   footer.textContent="TIMELOG v1.0 · e-CONOMIC INTEGRATION";

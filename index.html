@@ -2300,6 +2300,7 @@ async function sendDriveToEconomic(container) {
 // ─── RAPPORT ─────────────────────────────────────────────────────
 function showRapport(customerNumber, customerName, month, year) {
   var entries = S.entries().filter(function(e){
+    if (e.cancelled) return false;
     if (e.customerNumber !== customerNumber) return false;
     var d = new Date(e.date+"T00:00:00");
     return d.getMonth()===month && d.getFullYear()===year;

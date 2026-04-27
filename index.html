@@ -2989,6 +2989,18 @@ function rerender() {
 
 // ─── INIT ────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", async function(){
+  // Opret gear-knap i topbar én gang
+  var tb = document.getElementById("topbar");
+  if (tb) {
+    var gb = document.createElement("button");
+    gb.id = "kontoBtn";
+    gb.innerHTML = ICONS.gear;
+    gb.style.cssText = "position:absolute;right:8px;top:12px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center";
+    gb.querySelector && gb.querySelector("svg") && (gb.querySelector("svg").style.cssText = "width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6");
+    gb.addEventListener("click", function(){ currentView="settings"; rerender(); });
+    tb.appendChild(gb);
+  }
+
   var _initProfiles = S.settings().rateProfiles||[];
   LS.rate = _initProfiles.length>0 ? String(_initProfiles[0].rate||S.settings().defaultRate||1000) : fmt(S.settings().defaultRate||1000);
   rerender();

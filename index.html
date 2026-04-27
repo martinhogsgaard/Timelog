@@ -1198,7 +1198,7 @@ function calcEntryUdlaeg(e) {
 }
 
 function buildDashboardStats(container) {
-  var entries = S.entries();
+  var entries = S.entries().filter(function(e){return !e.cancelled;});
   var now = new Date();
   var curMonth = now.getMonth();
   var curYear = now.getFullYear();

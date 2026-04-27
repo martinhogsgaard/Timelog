@@ -1225,6 +1225,7 @@ function buildDashboardStats(container) {
     var mDate = new Date(curYear, curMonth-i, 1);
     var mM = mDate.getMonth(), mY = mDate.getFullYear();
     var mEntries = entries.filter(function(e){
+      if (e.cancelled) return false;
       var d = new Date(e.date+"T00:00:00");
       return d.getMonth()===mM && d.getFullYear()===mY;
     });
@@ -1303,7 +1304,8 @@ function buildDashboardStats(container) {
       kundeDetail.innerHTML = "";
 
       // Fortjeneste fra lokale entries (timelog kender avancer)
-      var cAll   = entries.filter(function(e){return String(e.customerNumber)===String(cNum);});
+      // Kun ikke-annullerede entries
+      var cAll   = entries.filter(function(e){return String(e.customerNumber)===String(cNum) && !e.cancelled;});
       var cMonth = cAll.filter(function(e){var d=new Date(e.date+"T00:00:00");return d.getMonth()===curMonth&&d.getFullYear()===curYear;});
       var cYear  = cAll.filter(function(e){return new Date(e.date+"T00:00:00").getFullYear()===curYear;});
       function sP(arr){return arr.reduce(function(s,e){return s+calcEntryProfit(e);},0);}

@@ -879,39 +879,64 @@ function buildLogView(container) {
   var cf2b = div("cf"); cf2b.appendChild(div("fl","Timepris (kr)"));
   var profiles = settings.rateProfiles||[];
   if (profiles.length > 0) {
-    // Dropdown med pristyper + manuel
-    var rateSelect = document.createElement("select");
-    rateSelect.style.cssText="width:100%;background:none;border:none;outline:none;font-family:var(--font);font-size:15px;font-weight:500;color:var(--text);padding:0;cursor:pointer;-webkit-appearance:none;margin-top:4px";
-    profiles.forEach(function(p){
-      var opt = document.createElement("option");
-      opt.value = p.rate||"";
-      // Format: "Konsulentarbejde — 500 kr/t" i listen
-      opt.textContent = p.name+(p.rate?" — "+fmt(p.rate)+" kr/t":"");
-      if (String(p.rate)===String(parseH(LS.rate))) opt.selected=true;
-      rateSelect.appendChild(opt);
-    });
-    var manOpt = document.createElement("option"); manOpt.value="manual"; manOpt.textContent="Manuel pris…";
-    rateSelect.appendChild(manOpt);
+    // Sæt initial rate fra første profil hvis ikke sat
+    if (!LS.rate || LS.rate==="–") LS.rate=String(profiles[0].rate||settings.defaultRate||1000);
 
+    // Vis kun beløbet — tryk åbner sheet med valg
+    var rateDisplayWrap = div(""); rateDisplayWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer";
+    var rateValEl = div("fv"); rateValEl.style.flex="1";
+
+    // Find navn på nuværende rate
+    function getRateName(rate) {
+      var p = profiles.find(function(p){return String(p.rate)===String(rate);});
+      return p ? p.name : "Manuel";
+    }
+    function updateRateDisplay() {
+      rateValEl.textContent = fmt(parseH(LS.rate)||0)+" kr/t";
+      rateValEl.title = getRateName(LS.rate);
+    }
+    updateRateDisplay();
+
+    var rateChev = div(""); rateChev.innerHTML=ICONS.chevron; rateChev.style.cssText="color:var(--muted);display:flex;flex-shrink:0";
+    rateDisplayWrap.appendChild(rateValEl); rateDisplayWrap.appendChild(rateChev);
+
+    // Manuel input (skjult som standard)
     var manWrap = div(""); manWrap.style.display="none";
     var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal";
-    rateInp.placeholder="Skriv pris"; rateInp.className="fv";
+    rateInp.placeholder="Skriv pris"; rateInp.className="fv"; rateInp.style.marginTop="4px";
     rateInp.addEventListener("input",function(){LS.rate=rateInp.value; updateSubmitBtn();});
     iosScrollOnFocus(rateInp);
     manWrap.appendChild(rateInp);
 
-    rateSelect.addEventListener("change",function(){
-      if (rateSelect.value==="manual") {
-        manWrap.style.display="block"; LS.rate=""; rateInp.focus();
-      } else {
-        manWrap.style.display="none"; LS.rate=rateSelect.value; updateSubmitBtn();
-      }
+    rateDisplayWrap.addEventListener("click",function(){
+      var items = profiles.map(function(p){
+        return {
+          name: p.name,
+          sub: fmt(p.rate)+" kr/t",
+          checked: String(p.rate)===String(LS.rate),
+          onSelect: function(){
+            LS.rate=String(p.rate);
+            manWrap.style.display="none";
+            updateRateDisplay();
+            updateSubmitBtn();
+          }
+        };
+      });
+      items.push({
+        name: "Manuel pris",
+        sub: "Skriv en specialpris",
+        checked: false,
+        onSelect: function(){
+          manWrap.style.display="block";
+          LS.rate="";
+          updateRateDisplay();
+          rateInp.focus();
+        }
+      });
+      showSheet("Vælg timepris", items);
     });
-    // Sæt initial rate fra første profil hvis ikke sat
-    if (!LS.rate || LS.rate==="–") LS.rate=String(profiles[0].rate||settings.defaultRate||1000);
-    // Sæt dropdown til nuværende rate
-    Array.from(rateSelect.options).forEach(function(o){if(o.value===LS.rate)o.selected=true;});
-    cf2b.appendChild(rateSelect);
+
+    cf2b.appendChild(rateDisplayWrap);
     cf2b.appendChild(manWrap);
   } else {
     // Ingen profiler — vis simpelt inputfelt som før

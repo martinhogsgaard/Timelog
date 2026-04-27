@@ -183,6 +183,21 @@ textarea{resize:none}
 .ai-thinking .spin-dark{width:32px;height:32px}
 .ai-lbl{font-family:var(--mono);font-size:11px;color:var(--muted);letter-spacing:.1em}
 
+/* KUNDE ANALYSE */
+.kunde-picker{width:100%;background:var(--white);border:1px solid var(--border);border-radius:10px;padding:13px 16px;font-family:var(--font);font-size:15px;font-weight:500;color:var(--text);outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238C8980' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;margin-bottom:16px}
+.kunde-stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px}
+.kunde-stat-box{background:var(--white);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px}
+.kunde-stat-box.accent{background:var(--accent-bg);border-color:var(--accent)}
+.kunde-stat-box.green{background:var(--green-bg);border-color:var(--green)}
+.kunde-stat-l{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.kunde-stat-box.accent .kunde-stat-l{color:var(--accent)}
+.kunde-stat-box.green .kunde-stat-l{color:var(--green)}
+.kunde-stat-v{font-size:18px;font-weight:600;letter-spacing:-.02em}
+.kunde-stat-box.accent .kunde-stat-v{color:var(--accent)}
+.kunde-stat-box.green .kunde-stat-v{color:var(--green)}
+.kunde-stat-u{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px}
+.total-grid{display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;padding:16px 0;border:1px solid var(--border);border-radius:var(--r);background:var(--white);margin-bottom:20px}
+
 /* KONTO KNAP I HEADER */
 .konto-btn{position:absolute;top:max(16px,env(safe-area-inset-top));right:14px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:10}
 .konto-btn svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
@@ -1062,22 +1077,54 @@ function buildHistoryView(container) {
 // ─── DASHBOARD + INVOICES VIEW ───────────────────────────────────
 var DR = { drafts:null, lines:{}, expanded:null, loading:true, error:null };
 
+function calcEntryProfit(e) {
+  // Beregn fortjeneste per entry
+  if (e.type==="hours") return e.hours * e.hourlyRate;
+  if (e.type==="drive") return e.hours * e.hourlyRate; // hele beløbet er fortjeneste
+  if (e.type==="scan") {
+    // Fortjeneste = totalbeløb - originalbeløb
+    var orig = e.originalAmount || 0;
+    var total = e.hours * e.hourlyRate;
+    return total - orig;
+  }
+  return e.hours * e.hourlyRate;
+}
+
+function calcEntryUdlaeg(e) {
+  // Udlæg = det der er lagt ud (kun scan)
+  if (e.type==="scan") return e.originalAmount || 0;
+  return 0;
+}
+
 function buildDashboardStats(container) {
   var entries = S.entries();
+  var customers = S.customers();
   var now = new Date();
   var curMonth = now.getMonth();
   var curYear = now.getFullYear();
+
+  var MONTHS_SHORT = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
 
   // Denne måneds tal
   var monthEntries = entries.filter(function(e){
     var d = new Date(e.date+"T00:00:00");
     return d.getMonth()===curMonth && d.getFullYear()===curYear;
   });
-  var monthHours = monthEntries.reduce(function(s,e){return s+e.hours;},0);
+  var monthHours = monthEntries.filter(function(e){return e.type==="hours";}).reduce(function(s,e){return s+e.hours;},0);
   var monthReal  = monthEntries.reduce(function(s,e){return s+(e.realHours||0);},0);
   var monthKr    = monthEntries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
 
-  var MONTHS_SHORT = ["jan","feb","mar","apr","maj","jun","jul","aug","sep","okt","nov","dec"];
+  // Total alle tider
+  var totalKr      = entries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+  var totalProfit  = entries.reduce(function(s,e){return s+calcEntryProfit(e);},0);
+  var totalUdlaeg  = entries.reduce(function(s,e){return s+calcEntryUdlaeg(e);},0);
+
+  // År total
+  var yearEntries = entries.filter(function(e){
+    return new Date(e.date+"T00:00:00").getFullYear()===curYear;
+  });
+  var yearKr     = yearEntries.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0);
+  var yearProfit = yearEntries.reduce(function(s,e){return s+calcEntryProfit(e);},0);
 
   // Header
   var vhdr=div("vhdr");
@@ -1088,7 +1135,7 @@ function buildDashboardStats(container) {
   var mLabel = MONTHS_SHORT[curMonth].toUpperCase()+" "+curYear;
   container.appendChild(div("slbl","<span>"+mLabel+"</span>"));
 
-  // 3-kolonne stats
+  // 3-kolonne stats denne måned
   var sb = div("dash-sbar");
   function dashStat(label, val, unit) {
     var s = div("dash-stat");
@@ -1103,6 +1150,23 @@ function buildDashboardStats(container) {
   sb.appendChild(div("sdiv"));
   sb.appendChild(dashStat("Beløb", monthKr>0 ? Math.round(monthKr/1000)+"k" : "0", "kr ex. moms"));
   container.appendChild(sb);
+
+  // Total overblik — alle tider
+  container.appendChild(div("slbl","<span>Total overblik — alt tid</span>"));
+  var totGrid = div("total-grid");
+  function totStat(label, val, unit) {
+    var s = div("dash-stat");
+    s.appendChild(div("dash-stat-l", label));
+    var v = div("dash-stat-v"); v.style.fontSize="17px"; v.innerHTML="<strong>"+val+"</strong>"; s.appendChild(v);
+    s.appendChild(div("dash-stat-u", unit));
+    return s;
+  }
+  totGrid.appendChild(totStat("Faktureret", Math.round(totalKr/1000)+"k", "kr ex. moms"));
+  totGrid.appendChild(div("sdiv"));
+  totGrid.appendChild(totStat("Fortjeneste", Math.round(totalProfit/1000)+"k", "kr ex. moms"));
+  totGrid.appendChild(div("sdiv"));
+  totGrid.appendChild(totStat(curYear+" i alt", Math.round(yearKr/1000)+"k", "kr ex. moms"));
+  container.appendChild(totGrid);
 
   // Effektivitet
   if (monthReal > 0 && monthHours > 0) {
@@ -1189,6 +1253,95 @@ function buildInvoicesView(container) {
 
   // Dashboard øverst
   buildDashboardStats(container);
+
+  // Kunde analyse dropdown
+  var uniqueCustomers = [];
+  var custSeen = {};
+  entries.forEach(function(e){
+    if (!custSeen[e.customerNumber]) {
+      custSeen[e.customerNumber] = true;
+      uniqueCustomers.push({number:e.customerNumber, name:e.customerName});
+    }
+  });
+  uniqueCustomers.sort(function(a,b){return a.name.localeCompare(b.name,"da");});
+
+  if (uniqueCustomers.length > 0) {
+    container.appendChild(div("slbl","<span>Kunde analyse</span>"));
+
+    var picker = document.createElement("select");
+    picker.className = "kunde-picker";
+    var defaultOpt = document.createElement("option");
+    defaultOpt.value = ""; defaultOpt.textContent = "Vælg kunde…";
+    picker.appendChild(defaultOpt);
+    uniqueCustomers.forEach(function(c){
+      var opt = document.createElement("option");
+      opt.value = c.number; opt.textContent = c.name;
+      picker.appendChild(opt);
+    });
+
+    var kundeDetail = div(""); kundeDetail.style.marginBottom="20px";
+
+    picker.addEventListener("change", function(){
+      kundeDetail.innerHTML = "";
+      if (!picker.value) return;
+      var cNum = picker.value;
+      var cEntries = entries.filter(function(e){return String(e.customerNumber)===String(cNum);});
+      var cName = (uniqueCustomers.find(function(c){return String(c.number)===String(cNum);})||{}).name||"";
+
+      // Beregn per periode
+      var cMonthE = cEntries.filter(function(e){
+        var d=new Date(e.date+"T00:00:00");
+        return d.getMonth()===curMonth && d.getFullYear()===curYear;
+      });
+      var cYearE = cEntries.filter(function(e){
+        return new Date(e.date+"T00:00:00").getFullYear()===curYear;
+      });
+
+      function sumKr(arr) { return arr.reduce(function(s,e){return s+e.hours*e.hourlyRate;},0); }
+      function sumProfit(arr) { return arr.reduce(function(s,e){return s+calcEntryProfit(e);},0); }
+      function sumUdlaeg(arr) { return arr.reduce(function(s,e){return s+calcEntryUdlaeg(e);},0); }
+      function sumHours(arr) { return arr.filter(function(e){return e.type==="hours";}).reduce(function(s,e){return s+e.hours;},0); }
+
+      var mKr = sumKr(cMonthE), yKr = sumKr(cYearE), tKr = sumKr(cEntries);
+      var mP = sumProfit(cMonthE), yP = sumProfit(cYearE), tP = sumProfit(cEntries);
+      var tUd = sumUdlaeg(cEntries);
+      var tHrs = sumHours(cEntries);
+
+      // Faktureret grid
+      var fg = div("kunde-stat-grid");
+      function kBox(cls, label, val, unit) {
+        var b = div("kunde-stat-box"+(cls?" "+cls:""));
+        b.appendChild(div("kunde-stat-l", label));
+        var vEl = div("kunde-stat-v"); vEl.textContent = val; b.appendChild(vEl);
+        if (unit) { var uEl = div("kunde-stat-u"); uEl.textContent=unit; b.appendChild(uEl); }
+        return b;
+      }
+
+      kundeDetail.appendChild(div("slbl","<span>Faktureret</span>"));
+      var fg2 = div("kunde-stat-grid");
+      fg2.appendChild(kBox("accent","Denne måned", Math.round(mKr).toLocaleString("da-DK")+" kr","ex. moms"));
+      fg2.appendChild(kBox("accent",curYear+" i alt", Math.round(yKr).toLocaleString("da-DK")+" kr","ex. moms"));
+      kundeDetail.appendChild(fg2);
+      var fg3 = div("kunde-stat-grid");
+      fg3.appendChild(kBox("","I alt", Math.round(tKr).toLocaleString("da-DK")+" kr","ex. moms"));
+      fg3.appendChild(kBox("","Timer i alt", fmt(tHrs)+" t","fakturerede timer"));
+      kundeDetail.appendChild(fg3);
+
+      // Fortjeneste grid
+      kundeDetail.appendChild(div("slbl","<span>Fortjeneste</span>"));
+      var pg = div("kunde-stat-grid");
+      pg.appendChild(kBox("green","Denne måned", Math.round(mP).toLocaleString("da-DK")+" kr","ex. moms"));
+      pg.appendChild(kBox("green",curYear+" i alt", Math.round(yP).toLocaleString("da-DK")+" kr","ex. moms"));
+      kundeDetail.appendChild(pg);
+      var pg2 = div("kunde-stat-grid");
+      pg2.appendChild(kBox("green","I alt", Math.round(tP).toLocaleString("da-DK")+" kr","ex. moms"));
+      if (tUd > 0) pg2.appendChild(kBox("","Udlæg i alt", Math.round(tUd).toLocaleString("da-DK")+" kr","videresendt til kunde"));
+      kundeDetail.appendChild(pg2);
+    });
+
+    container.appendChild(picker);
+    container.appendChild(kundeDetail);
+  }
 
   // Divider
   container.appendChild(div("dash-divider",""));
@@ -1758,10 +1911,13 @@ async function sendScanToEconomic(container, totalAmt) {
   try {
     var desc = r.description+(r.supplier?" ("+r.supplier+")":"")+(SS.avancePct>0?" +"+SS.avancePct+"% avance":"");
     var dn = await API.logHours(SS.customer.number, r.date||todayStr(), desc, 1, totalAmt);
+    var origAmt2 = parseFloat(String(r.amount||"0").replace(",",".")) || 0;
     S.addEntry({
       customerNumber:SS.customer.number, customerName:SS.customer.name,
       date:r.date||todayStr(), description:desc, hours:1, hourlyRate:totalAmt,
-      draftNumber:dn, status:"sent", type:"scan"
+      draftNumber:dn, status:"sent", type:"scan",
+      originalAmount: origAmt2,
+      avancePct: SS.avancePct
     });
     toast("✓ Faktura sendt til kladde #"+dn);
     SS.imageData=null; SS.imagePreview=null; SS.result=null; SS.avancePct=0; SS.customer=null;

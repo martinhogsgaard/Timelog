@@ -25,7 +25,7 @@
 }
 html,body{height:100%;overscroll-behavior:none;background:var(--bg)}
 body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
-#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg);position:relative}
+#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg)}
 .vwrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .view{padding:0 20px 40px;animation:fi .2s ease}
 @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -41,7 +41,7 @@ body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-w
 
 /* TOPBAR */
 #topbar{height:0;position:relative;flex-shrink:0;overflow:visible;z-index:10}
-#topbar button.gear{position:absolute;right:8px;top:12px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center}
+#topbar button.gear{position:fixed;top:max(12px,env(safe-area-inset-top));right:8px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center}
 #topbar button.gear svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
 #topbar button.gear.active svg{stroke:var(--accent)}
 
@@ -2999,6 +2999,15 @@ document.addEventListener("DOMContentLoaded", async function(){
     gb.querySelector && gb.querySelector("svg") && (gb.querySelector("svg").style.cssText = "width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6");
     gb.addEventListener("click", function(){ currentView="settings"; rerender(); });
     tb.appendChild(gb);
+    // Sæt right korrekt relativt til #app
+    function updateGearPos() {
+      var app = document.getElementById("app");
+      if (!app || !gb) return;
+      var r = app.getBoundingClientRect();
+      gb.style.right = Math.round(window.innerWidth - r.right + 8) + "px";
+    }
+    updateGearPos();
+    window.addEventListener("resize", updateGearPos);
   }
 
   var _initProfiles = S.settings().rateProfiles||[];

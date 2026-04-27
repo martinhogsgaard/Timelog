@@ -904,7 +904,12 @@ function buildLogView(container) {
     var manWrap = div(""); manWrap.style.display="none";
     var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal";
     rateInp.placeholder="Skriv pris"; rateInp.className="fv"; rateInp.style.marginTop="4px";
-    rateInp.addEventListener("input",function(){LS.rate=rateInp.value; updateSubmitBtn();});
+    rateInp.addEventListener("input",function(){
+      LS.rate=rateInp.value;
+      var v = parseH(rateInp.value);
+      rateValEl.textContent = v ? fmt(v)+" kr/t" : "Manuel pris";
+      updateSubmitBtn();
+    });
     iosScrollOnFocus(rateInp);
     manWrap.appendChild(rateInp);
 
@@ -929,7 +934,8 @@ function buildLogView(container) {
         onSelect: function(){
           manWrap.style.display="block";
           LS.rate="";
-          updateRateDisplay();
+          rateValEl.textContent="Manuel pris";
+          rateInp.value="";
           rateInp.focus();
         }
       });

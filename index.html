@@ -881,6 +881,8 @@ function buildLogView(container) {
   if (profiles.length > 0) {
     // Sæt initial rate fra første profil hvis ikke sat
     if (!LS.rate || LS.rate==="–") LS.rate=String(profiles[0].rate||settings.defaultRate||1000);
+    // Er nuværende rate en known profil?
+    var _isKnownRate = profiles.some(function(p){return String(p.rate)===String(parseH(LS.rate));});
 
     // Vis kun beløbet — tryk åbner sheet med valg
     var rateDisplayWrap = div(""); rateDisplayWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer";
@@ -902,10 +904,10 @@ function buildLogView(container) {
     rateDisplayWrap.appendChild(rateValEl); rateDisplayWrap.appendChild(rateChev);
 
     // Manuel input (skjult som standard)
-    var manWrap = div(""); manWrap.style.display="none";
+    var manWrap = div(""); manWrap.style.display=_isKnownRate?"none":"block";
     var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal";
     rateInp.placeholder="Skriv specialpris…"; rateInp.className="fv"; rateInp.style.marginTop="4px";
-    rateInp.value=""; // aldrig pre-fyldt
+    rateInp.value=_isKnownRate?"":LS.rate;
     rateInp.addEventListener("input",function(){
       LS.rate=rateInp.value;
       var v = parseH(rateInp.value);

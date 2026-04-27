@@ -103,6 +103,8 @@ textarea{resize:none}
 .badge{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:3px 7px;border-radius:4px}
 .badge.draft{background:var(--accent-bg);color:var(--accent)}
 .badge.sent{background:var(--green-bg);color:var(--green)}
+.badge.cancelled{background:var(--bg);color:var(--muted);text-decoration:line-through}
+.entry.cancelled{opacity:.45}
 .eamt{font-family:var(--mono);font-size:11px;color:var(--muted)}
 
 /* SHEET */
@@ -1017,7 +1019,9 @@ function buildLogView(container) {
       var descShort=(e.description||"").slice(0,30)+((e.description||"").length>30?"…":"");
       einfo.appendChild(div("emeta",d+" · "+descShort));
       var eright=div("eright");
-      eright.appendChild(span("badge "+e.status, e.status==="sent"?"Sendt ✓":"Kladde"));
+      var blogCls = e.cancelled ? "cancelled" : e.status;
+      var blogTxt = e.cancelled ? "Annulleret" : (e.status==="sent"?"Sendt ✓":"Kladde");
+      eright.appendChild(span("badge "+blogCls, blogTxt));
       if (e.draftNumber) eright.appendChild(span("eamt","#"+e.draftNumber));
       ebody.appendChild(ehrs); ebody.appendChild(einfo); ebody.appendChild(eright);
       entry.appendChild(ebar); entry.appendChild(ebody);
@@ -1059,8 +1063,8 @@ function buildHistoryView(container) {
     wrap.appendChild(div("slbl","<span>"+dateLabel(date)+"</span><span>"+fmt(dayH)+" t</span>"));
     var elist=div("elist");
     dayEntries.forEach(function(e){
-      var entry=div("entry");
-      var ebar=div("ebar "+e.status);
+      var entry=div("entry"+(e.cancelled?" cancelled":""));
+      var ebar=div("ebar "+(e.cancelled?"cancelled":e.status));
       var ebody=div("ebody");
       var ehrs=entryIcon(e);
       var einfo=div("einfo");
@@ -1068,7 +1072,9 @@ function buildHistoryView(container) {
       var descShort=(e.description||"").slice(0,38)+((e.description||"").length>38?"…":"");
       einfo.appendChild(div("emeta",descShort));
       var eright=div("eright");
-      eright.appendChild(span("badge "+e.status,e.status==="sent"?"Sendt":"Kladde"));
+      var badgeCls = e.cancelled ? "cancelled" : e.status;
+      var badgeTxt = e.cancelled ? "Annulleret" : (e.status==="sent"?"Sendt":"Kladde");
+      eright.appendChild(span("badge "+badgeCls, badgeTxt));
       eright.appendChild(span("eamt",(e.hours*e.hourlyRate).toLocaleString("da-DK")+" kr"));
       ebody.appendChild(ehrs); ebody.appendChild(einfo); ebody.appendChild(eright);
       entry.appendChild(ebar); entry.appendChild(ebody);
@@ -1390,6 +1396,20 @@ function buildDashboardStats(container) {
 
 function buildInvoicesView(container) {
   container.innerHTML="";
+
+  // Synk annullerede entries i baggrunden
+  syncCancelledEntries().then(function(changed){
+    if (changed) {
+      // Genbyg dashboard med opdaterede tal
+      var vw = document.getElementById("vwrap");
+      if (vw && currentView === "invoices") {
+        vw.innerHTML="";
+        var inner = document.createElement("div"); inner.className="view";
+        buildInvoicesView(inner);
+        vw.appendChild(inner);
+      }
+    }
+  });
 
   // Dashboard øverst
   buildDashboardStats(container);
@@ -2692,6 +2712,51 @@ function buildNoteItem(n, container) {
   hdr.appendChild(dot); hdr.appendChild(info); hdr.appendChild(actions);
   item.appendChild(hdr);
   return item;
+}
+
+
+// ─── SYNK ANNULLEREDE ENTRIES ────────────────────────────────────
+async function syncCancelledEntries() {
+  try {
+    // Hent alle aktive kladder og bogførte fakturaer fra e-conomic
+    var key = await API.getAppKey();
+
+    var draftsRes = await API.getAllDrafts();
+    var activeDraftNrs = new Set(draftsRes.map(function(d){ return String(d.draftInvoiceNumber); }));
+
+    // Hent bogførte fakturaer
+    var bookedData = await API.req("/invoices/booked?pagesize=100");
+    var bookedNrs = new Set((bookedData.collection||[]).map(function(b){ return String(b.bookedInvoiceNumber); }));
+
+    var entries = S.entries();
+    var changed = false;
+
+    var updated = entries.map(function(e) {
+      if (!e.draftNumber) return e;
+      var dn = String(e.draftNumber);
+      // Er kladden stadig aktiv eller bogført?
+      var isActive = activeDraftNrs.has(dn) || bookedNrs.has(dn);
+      if (!isActive && !e.cancelled) {
+        changed = true;
+        return Object.assign({}, e, { cancelled: true });
+      }
+      // Genaktiver hvis kladden er dukket op igen (usandsynligt men muligt)
+      if (isActive && e.cancelled) {
+        changed = true;
+        return Object.assign({}, e, { cancelled: false });
+      }
+      return e;
+    });
+
+    if (changed) {
+      S.setEntries(updated);
+      return true;
+    }
+    return false;
+  } catch(e) {
+    console.warn("syncCancelledEntries fejl:", e.message);
+    return false;
+  }
 }
 
 // ─── ROUTER ──────────────────────────────────────────────────────

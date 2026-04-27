@@ -539,10 +539,23 @@ var SYNC = {
       });
       if (!res.ok) return false;
       var data = await res.json();
-      if (data.entries   && data.entries.length   > 0) localStorage.setItem("tl_e", JSON.stringify(data.entries));
       if (data.customers && data.customers.length > 0) localStorage.setItem("tl_c", JSON.stringify(data.customers));
       if (data.settings  && Object.keys(data.settings).length > 0) localStorage.setItem("tl_s", JSON.stringify(data.settings));
       if (data.notes     !== undefined) localStorage.setItem("tl_n", JSON.stringify(data.notes));
+      if (data.entries   && data.entries.length > 0) {
+        // Merge entries: cancelled=true må aldrig overskrives med false
+        var local = [];
+        try { local = JSON.parse(localStorage.getItem("tl_e")||"[]"); } catch(e) {}
+        var localMap = {};
+        local.forEach(function(e){ localMap[e.id] = e; });
+        var merged = data.entries.map(function(e) {
+          var loc = localMap[e.id];
+          // Bevar cancelled=true fra enten lokal eller server
+          if (loc && loc.cancelled === true) return Object.assign({}, e, {cancelled: true});
+          return e;
+        });
+        localStorage.setItem("tl_e", JSON.stringify(merged));
+      }
       return true;
     } catch(e) {
       console.warn("Sync pull fejl:", e.message);

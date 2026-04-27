@@ -1791,6 +1791,36 @@ function buildSettingsView(container) {
   syncBtn.addEventListener("click",function(){doSync(syncBtn);});
   container.appendChild(syncBtn);
 
+  // Data cleanup knap
+  var cleanupBtn=document.createElement("button"); cleanupBtn.className="btns"; cleanupBtn.style.marginTop="8px";
+  cleanupBtn.innerHTML="🔧 Synkroniser annullerede entries";
+  cleanupBtn.addEventListener("click", async function(){
+    cleanupBtn.innerHTML="Synkroniserer…"; cleanupBtn.disabled=true;
+    try {
+      // Hent fra Redis
+      var key = await API.getAppKey();
+      var res = await fetch("/api/store",{headers:{"x-app-key":key}});
+      var serverData = await res.json();
+      // Kanceller alle Zoo entries i server-data
+      var updated = serverData.entries.map(function(e){
+        if(e.customerName==="Aalborg Zoo") return Object.assign({},e,{cancelled:true});
+        return e;
+      });
+      // Gem tilbage
+      var saveRes = await fetch("/api/store",{method:"POST",headers:{"Content-Type":"application/json","x-app-key":key},body:JSON.stringify({entries:updated})});
+      var saveData = await saveRes.json();
+      // Opdater localStorage
+      localStorage.setItem("tl_e", JSON.stringify(updated));
+      toast("✓ Data synkroniseret");
+      rerender();
+    } catch(e) {
+      toast("Fejl: "+e.message);
+      cleanupBtn.innerHTML="🔧 Synkroniser annullerede entries";
+      cleanupBtn.disabled=false;
+    }
+  });
+  container.appendChild(cleanupBtn);
+
   var footer=div(""); footer.style.cssText="margin-top:40px;text-align:center;font-family:var(--mono);font-size:10px;color:var(--subtle);letter-spacing:.1em";
   footer.textContent="TIMELOG v1.0 · e-CONOMIC INTEGRATION";
   container.appendChild(footer);

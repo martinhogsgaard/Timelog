@@ -881,15 +881,84 @@ function buildLogView(container) {
   if (profiles.length > 0) {
     // Sæt initial rate fra første profil hvis ikke sat
     if (!LS.rate || LS.rate==="–") LS.rate=String(profiles[0].rate||settings.defaultRate||1000);
-    // Er nuværende rate en known profil?
-    var _lsRateNum = parseH(LS.rate);
-    var _isKnownRate = _lsRateNum !== null && profiles.some(function(p){ return parseFloat(p.rate)===_lsRateNum; });
 
-    // Vis kun beløbet — tryk åbner sheet med valg
-    var rateDisplayWrap = div(""); rateDisplayWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer";
+    // Ét felt der altid viser prisen og åbner sheet ved tryk
+    var rateRow = div(""); rateRow.style.cssText="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer";
     var rateValEl = div("fv"); rateValEl.style.flex="1";
+    var rateChev = div(""); rateChev.innerHTML=ICONS.chevron; rateChev.style.cssText="color:var(--muted);display:flex;flex-shrink:0";
+    rateRow.appendChild(rateValEl); rateRow.appendChild(rateChev);
+    cf2b.appendChild(rateRow);
 
-    // Find navn på nuværende rate
+    function updateRateDisplay() {
+      var v = parseH(LS.rate);
+      rateValEl.textContent = v ? fmt(v)+" kr/t" : "Vælg timepris →";
+    }
+    updateRateDisplay();
+
+    rateRow.addEventListener("click", function(){
+      var items = profiles.map(function(p){
+        return {
+          name: p.name,
+          sub: fmt(p.rate)+" kr/t",
+          checked: parseFloat(p.rate)===parseH(LS.rate),
+          onSelect: function(){
+            LS.rate=String(p.rate);
+            updateRateDisplay();
+            updateSubmitBtn();
+          }
+        };
+      });
+      items.push({
+        name: "Manuel pris",
+        sub: "Tryk for at skrive specialpris",
+        checked: false,
+        onSelect: function(){
+          var overlay2 = div("overlay"); overlay2.style.zIndex="60";
+          var sheet2 = div("sheet");
+          sheet2.appendChild(div("shandle",""));
+          sheet2.appendChild(div("stitle","Manuel timepris"));
+          var inputRow = div(""); inputRow.style.cssText="display:flex;align-items:center;gap:8px;margin-bottom:16px";
+          var manInp = document.createElement("input");
+          manInp.type="text"; manInp.inputMode="decimal";
+          manInp.placeholder="0"; manInp.className="fv";
+          manInp.style.cssText="font-size:24px;font-weight:300;flex:1";
+          var krLbl = document.createElement("span");
+          krLbl.style.cssText="font-family:var(--mono);font-size:14px;color:var(--muted)";
+          krLbl.textContent="kr/t";
+          inputRow.appendChild(manInp); inputRow.appendChild(krLbl);
+          sheet2.appendChild(inputRow);
+          var confirmBtn = document.createElement("button");
+          confirmBtn.className="btnp";
+          confirmBtn.innerHTML=ICONS.check+" Brug denne pris";
+          confirmBtn.addEventListener("click", function(){
+            var v = parseH(manInp.value);
+            if (!v) return;
+            LS.rate=String(v);
+            updateRateDisplay();
+            updateSubmitBtn();
+            if(overlay2.parentNode) overlay2.parentNode.removeChild(overlay2);
+            document.body.style.overflow="";
+          });
+          sheet2.appendChild(confirmBtn);
+          manInp.addEventListener("keydown", function(e){ if(e.key==="Enter") confirmBtn.click(); });
+          overlay2.appendChild(sheet2);
+          overlay2.addEventListener("click", function(e){
+            if(e.target===overlay2){ if(overlay2.parentNode) overlay2.parentNode.removeChild(overlay2); document.body.style.overflow=""; }
+          });
+          document.body.appendChild(overlay2);
+          document.body.style.overflow="hidden";
+          setTimeout(function(){ manInp.focus(); }, 300);
+        }
+      });
+      showSheet("Vælg timepris", items);
+    });
+  } else {
+    // Ingen profiler — simpelt inputfelt
+    var rateInp = document.createElement("input"); rateInp.type="text"; rateInp.inputMode="decimal";
+    rateInp.value=LS.rate; rateInp.placeholder=String(settings.defaultRate||1000); rateInp.className="fv";
+    rateInp.addEventListener("input",function(){LS.rate=rateInp.value; updateSubmitBtn();});
+    cf2b.appendChild(rateInp);
+  }
 
   crow2.appendChild(cf2a); crow2.appendChild(cf2b);
   card.appendChild(crow2);
@@ -2918,7 +2987,6 @@ document.addEventListener("DOMContentLoaded", async function(){
     }
   }, 30000);
 });
-}
 </script>
 </body>
 </html>

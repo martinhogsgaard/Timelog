@@ -882,7 +882,8 @@ function buildLogView(container) {
     // Sæt initial rate fra første profil hvis ikke sat
     if (!LS.rate || LS.rate==="–") LS.rate=String(profiles[0].rate||settings.defaultRate||1000);
     // Er nuværende rate en known profil?
-    var _isKnownRate = profiles.some(function(p){return String(p.rate)===String(parseH(LS.rate));});
+    var _lsRateNum = parseH(LS.rate);
+    var _isKnownRate = _lsRateNum !== null && profiles.some(function(p){ return parseFloat(p.rate)===_lsRateNum; });
 
     // Vis kun beløbet — tryk åbner sheet med valg
     var rateDisplayWrap = div(""); rateDisplayWrap.style.cssText="display:flex;align-items:center;gap:6px;margin-top:4px;cursor:pointer";

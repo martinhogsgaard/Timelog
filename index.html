@@ -25,7 +25,7 @@
 }
 html,body{height:100%;overscroll-behavior:none;background:var(--bg)}
 body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
-#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg)}
+#app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;background:var(--bg);position:relative}
 .vwrap{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .view{padding:0 20px 40px;animation:fi .2s ease}
 @keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
@@ -40,11 +40,6 @@ body{font-family:var(--font);color:var(--text);font-size:16px;line-height:1.5;-w
 .nbtn.on .nlbl{color:var(--accent)}
 
 /* TOPBAR */
-#topbar{height:0;position:relative;flex-shrink:0;overflow:visible;z-index:10}
-#topbar button.gear{position:fixed;top:max(12px,env(safe-area-inset-top));right:8px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center}
-#topbar button.gear svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
-#topbar button.gear.active svg{stroke:var(--accent)}
-
 /* COMMON */
 .date-block{padding:20px 0 16px;border-bottom:1px solid var(--border);margin-bottom:20px}
 .date-day{font-family:var(--mono);font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;display:none}
@@ -315,10 +310,10 @@ textarea{resize:none}
 </head>
 <body>
 <div id="app">
-<div id="topbar"></div>
 <div class="vwrap" id="vwrap"></div>
 <nav class="navbar" id="navbar"></nav>
 </div>
+<button id="gearBtn" onclick="currentView='settings';rerender()" style="position:fixed;top:max(14px,env(safe-area-inset-top));right:14px;background:none;border:none;cursor:pointer;padding:6px;z-index:999;display:flex;align-items:center;justify-content:center"></button>
 <div id="toaster"></div>
 
 <script>
@@ -2960,6 +2955,7 @@ function rerender() {
   else if (currentView==="drive")    buildDriveView(inner);
   else if (currentView==="notes")    buildNoteView(inner);
   else if (currentView==="settings") buildSettingsView(inner);
+  else if (currentView==="settings") buildSettingsView(inner);
 
   vw.innerHTML=""; vw.appendChild(inner);
 
@@ -2988,27 +2984,13 @@ function rerender() {
 }
 
 // ─── INIT ────────────────────────────────────────────────────────
+window.addEventListener("resize", function(){
+  var gb = document.getElementById("gearBtn");
+  if (!gb) return;
+  var appR = document.getElementById("app").getBoundingClientRect().right;
+  gb.style.right = Math.max(8, Math.round(window.innerWidth - appR + 8)) + "px";
+});
 document.addEventListener("DOMContentLoaded", async function(){
-  // Opret gear-knap i topbar én gang
-  var tb = document.getElementById("topbar");
-  if (tb) {
-    var gb = document.createElement("button");
-    gb.id = "kontoBtn";
-    gb.innerHTML = ICONS.gear;
-    gb.style.cssText = "position:absolute;right:8px;top:12px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center";
-    gb.querySelector && gb.querySelector("svg") && (gb.querySelector("svg").style.cssText = "width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6");
-    gb.addEventListener("click", function(){ currentView="settings"; rerender(); });
-    tb.appendChild(gb);
-    // Sæt right korrekt relativt til #app
-    function updateGearPos() {
-      var app = document.getElementById("app");
-      if (!app || !gb) return;
-      var r = app.getBoundingClientRect();
-      gb.style.right = Math.round(window.innerWidth - r.right + 8) + "px";
-    }
-    updateGearPos();
-    window.addEventListener("resize", updateGearPos);
-  }
 
   var _initProfiles = S.settings().rateProfiles||[];
   LS.rate = _initProfiles.length>0 ? String(_initProfiles[0].rate||S.settings().defaultRate||1000) : fmt(S.settings().defaultRate||1000);

@@ -201,7 +201,7 @@ textarea{resize:none}
 .total-grid{display:grid;grid-template-columns:1fr 1px 1fr 1px 1fr;padding:16px 0;border:1px solid var(--border);border-radius:var(--r);background:var(--white);margin-bottom:20px}
 
 /* KONTO KNAP I HEADER */
-.konto-btn{position:absolute;top:max(16px,env(safe-area-inset-top));right:14px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:10}
+.konto-btn{position:fixed;top:max(16px,env(safe-area-inset-top));right:14px;background:none;border:none;cursor:pointer;padding:6px;color:var(--muted);display:flex;align-items:center;justify-content:center;z-index:20;background:rgba(245,244,240,.9);border-radius:8px}
 .konto-btn svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.6}
 .konto-btn.active svg{stroke:var(--accent)}
 
@@ -885,7 +885,8 @@ function buildLogView(container) {
     profiles.forEach(function(p){
       var opt = document.createElement("option");
       opt.value = p.rate||"";
-      opt.textContent = p.name+(p.rate?" — "+fmt(p.rate)+" kr":"");
+      // Format: "Konsulentarbejde — 500 kr/t" i listen
+      opt.textContent = p.name+(p.rate?" — "+fmt(p.rate)+" kr/t":"");
       if (String(p.rate)===String(parseH(LS.rate))) opt.selected=true;
       rateSelect.appendChild(opt);
     });
@@ -1602,20 +1603,24 @@ function buildSettingsView(container) {
       profiles.forEach(function(p, i) {
         var row = div("srow"); row.style.flexWrap="nowrap";
         var rowL = div(""); rowL.style.cssText="min-width:0;flex:1;margin-right:8px";
+        // Navn felt
+        rowL.appendChild(div("srsub", i===0 ? "Standard — bruges automatisk" : "Navn"));
         var nameInp = document.createElement("input"); nameInp.className="srinp"; nameInp.type="text";
-        nameInp.value=p.name; nameInp.placeholder="Navn på timepris";
+        nameInp.value=p.name; nameInp.placeholder="fx Konsulentarbejde";
         nameInp.style.cssText="width:100%;text-align:left;font-size:14px;font-weight:500";
         nameInp.addEventListener("input",function(){
           var profs = (S.settings().rateProfiles||[]).slice();
           profs[i] = Object.assign({},profs[i],{name:nameInp.value});
           S.setSettings({rateProfiles:profs, defaultRate:profs[0]?profs[0].rate:s.defaultRate});
         });
-        if (i===0) rowL.appendChild(div("srsub","Standard — bruges automatisk"));
         rowL.appendChild(nameInp);
         row.appendChild(rowL);
-        var rowR = div(""); rowR.style.cssText="display:flex;align-items:center;gap:4px;flex-shrink:0";
+        // Pris felt
+        var rowR = div(""); rowR.style.cssText="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0;min-width:90px";
+        rowR.appendChild(div("srsub","Pris"));
+        var priceRow = div(""); priceRow.style.cssText="display:flex;align-items:center;gap:4px";
         var rateI = document.createElement("input"); rateI.className="srinp"; rateI.type="text"; rateI.inputMode="decimal";
-        rateI.value=p.rate?fmt(p.rate):""; rateI.placeholder="kr/t"; rateI.style.width="65px";
+        rateI.value=p.rate?fmt(p.rate):""; rateI.placeholder="0"; rateI.style.width="60px";
         rateI.addEventListener("input",function(){
           var v=parseFloat(rateI.value.replace(",","."));
           if(!isNaN(v)){
@@ -1625,6 +1630,7 @@ function buildSettingsView(container) {
           }
         });
         var krS = document.createElement("span"); krS.style.cssText="font-family:var(--mono);font-size:12px;color:var(--muted)"; krS.textContent="kr/t";
+        priceRow.appendChild(rateI); priceRow.appendChild(krS); rowR.appendChild(priceRow);
         var delBtn = document.createElement("button");
         delBtn.style.cssText="background:none;border:none;cursor:pointer;padding:4px;color:var(--muted)";
         delBtn.innerHTML=ICONS.trash; delBtn.querySelector("svg").style.cssText="width:14px;height:14px;stroke:var(--muted);fill:none;stroke-width:1.6";
@@ -1633,7 +1639,7 @@ function buildSettingsView(container) {
           S.setSettings({rateProfiles:profs, defaultRate:profs[0]?profs[0].rate:1000});
           renderProfiles();
         });
-        rowR.appendChild(rateI); rowR.appendChild(krS); rowR.appendChild(delBtn);
+        rowR.appendChild(delBtn);
         row.appendChild(rowR);
         profilesWrap.appendChild(row);
       });
